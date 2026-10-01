@@ -262,18 +262,38 @@ td:first-child,th:first-child{text-align:center}
           <dt>解析度</dt><dd id="resOut">—</dd>
           <dt data-vid>長度</dt><dd id="durOut" data-vid>—</dd>
         </dl>
-        <div data-img hidden>
-          <div class="grid2">
-            <div class="stack"><label for="imgHz">打點／閃光頻率 Hz</label><input type="number" id="imgHz" min="0.1" max="100000" step="any" value="60"></div>
-            <div class="stack"><label for="imgN">每幾個點標一次</label><input type="number" id="imgN" min="1" max="100" step="1" value="6"></div>
+        <div data-img hidden class="stack" style="gap:8px">
+          <div class="seg" role="radiogroup" aria-label="時間設定方式" style="align-self:flex-start">
+            <button type="button" data-tmode="hz" aria-pressed="true">用頻率計算</button>
+            <button type="button" data-tmode="dt" aria-pressed="false">直接輸入秒數</button>
           </div>
-          <div class="row" style="gap:6px">
-            <span class="note">常用：</span>
-            <button class="btn" type="button" data-hz="60" style="min-height:26px;padding:2px 8px">60 Hz</button>
-            <button class="btn" type="button" data-hz="50" style="min-height:26px;padding:2px 8px">50 Hz</button>
+          <div data-tm="hz" class="stack" style="gap:8px">
+            <div class="grid2">
+              <div class="stack"><label for="imgHz">打點／閃光頻率 Hz</label><input type="number" id="imgHz" min="0.1" max="100000" step="any" value="60"></div>
+              <div class="stack"><label for="imgN">每幾個點標一次</label><input type="number" id="imgN" min="1" max="100" step="1" value="6"></div>
+            </div>
+            <div class="row" style="gap:6px">
+              <span class="note">常用：</span>
+              <button class="btn" type="button" data-hz="60" style="min-height:26px;padding:2px 8px">60 Hz</button>
+              <button class="btn" type="button" data-hz="50" style="min-height:26px;padding:2px 8px">50 Hz</button>
+            </div>
+            <p class="note">台灣電源是 60 Hz，打點計時器每秒打 60 點（每點 1/60 s）。每 6 點標一次，Δt = 0.1 s。重複曝光照片請填閃光頻率，並把「每幾個點標一次」設為 1。</p>
           </div>
-          <dl class="kv" style="margin-top:6px"><dt>標記點的時間間隔 Δt</dt><dd id="imgDt">—</dd></dl>
-          <p class="note">台灣電源是 60 Hz，打點計時器每秒打 60 點（每點 1/60 s）。每 6 點標一次，Δt = 0.1 s。重複曝光照片請填閃光頻率，並把「每幾個點標一次」設為 1。</p>
+          <div data-tm="dt" class="stack" style="gap:8px" hidden>
+            <div class="grid2">
+              <div class="stack"><label for="imgDtIn">標記點的時間間隔（秒）</label><input type="number" id="imgDtIn" min="0.0001" max="1000" step="any" value="0.1"></div>
+              <div class="stack"><label for="imgN2">自動偵測時每幾個點取一</label><input type="number" id="imgN2" min="1" max="100" step="1" value="1"></div>
+            </div>
+            <div class="row" style="gap:6px">
+              <span class="note">常用：</span>
+              <button class="btn" type="button" data-dt="0.1" style="min-height:26px;padding:2px 8px">0.1 s</button>
+              <button class="btn" type="button" data-dt="0.05" style="min-height:26px;padding:2px 8px">0.05 s</button>
+              <button class="btn" type="button" data-dt="0.04" style="min-height:26px;padding:2px 8px">0.04 s</button>
+              <button class="btn" type="button" data-dt="0.02" style="min-height:26px;padding:2px 8px">0.02 s</button>
+            </div>
+            <p class="note">題目或實驗已經告訴你「每隔幾秒」時用這個方式，例如「閃光每 0.05 秒一次」。這裡填的是<b>相鄰兩個標記點</b>之間的時間。</p>
+          </div>
+          <dl class="kv"><dt>標記點的時間間隔 Δt</dt><dd id="imgDt">—</dd></dl>
         </div>
         <div class="grid2" data-vid>
           <div class="stack"><label for="fps">影片 fps（播放）</label>
@@ -703,9 +723,22 @@ function applyMode() {
   $('#denseOpt').textContent = im ? '全部的點' : '逐格追蹤（全部影格）';
   $('#dataSrc').querySelector('[value=pts]').textContent = im ? '標記的點' : '疊加取樣點';
 }
+let timeMode = 'hz';
+/* both modes reduce to {hz, n}: point k is at k·n/hz s, so Δt between marked points = n/hz */
 function imgTiming() {
+  if (timeMode === 'dt') {
+    const dt = +$('#imgDtIn').value, n = clamp(Math.round(+$('#imgN2').value) || 1, 1, 100);
+    return { hz: n / (dt > 0 ? dt : 0.1), n, dt: dt > 0 ? dt : 0.1 };
+  }
   const hz = +$('#imgHz').value, n = clamp(Math.round(+$('#imgN').value) || 1, 1, 100);
   return { hz: hz > 0 ? hz : 60, n };
+}
+function setTimeMode(m) {
+  timeMode = m;
+  $$('[data-tmode]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tmode === m));
+  $$('[data-tm]').forEach(el => el.hidden = el.dataset.tm !== m);
+  if (state.dots) resampleFromDots();
+  syncImageSlots(); updateAll();
 }
 /* keep frames = one slot per point plus one empty slot at the end; time of point k = k·n / Hz */
 function syncImageSlots() {
@@ -717,7 +750,7 @@ function syncImageSlots() {
   if (!P.length || P[P.length - 1]) P.push(null);
   state.frames = P.map((_, k) => ({ f: k * n, data: state.comp }));
   state.target = clamp(state.target, 0, P.length - 1);
-  $('#imgDt').textContent = `${n} ÷ ${sig(hz)} = ${sig(n / hz)} s`;
+  $('#imgDt').textContent = timeMode === 'dt' ? `${sig(n / hz)} s（直接輸入）` : `${n} ÷ ${sig(hz)} = ${sig(n / hz)} s`;
 }
 function resampleFromDots() {
   if (!state.dots || !state.dots.length) return;
@@ -2157,6 +2190,10 @@ $('#file').addEventListener('change', e => { const f = e.target.files[0]; if (f)
 $('#imgHz').addEventListener('change', () => { syncImageSlots(); updateAll(); });
 $('#imgN').addEventListener('change', e => { e.target.value = imgTiming().n; if (state.dots) resampleFromDots(); syncImageSlots(); updateAll(); });
 $$('[data-hz]').forEach(b => b.addEventListener('click', () => { $('#imgHz').value = b.dataset.hz; syncImageSlots(); updateAll(); }));
+$$('[data-tmode]').forEach(b => b.addEventListener('click', () => setTimeMode(b.dataset.tmode)));
+$('#imgDtIn').addEventListener('input', () => { if (+$('#imgDtIn').value > 0) { syncImageSlots(); updateAll(); } });
+$('#imgN2').addEventListener('change', e => { e.target.value = imgTiming().n; if (state.dots) resampleFromDots(); syncImageSlots(); updateAll(); });
+$$('[data-dt]').forEach(b => b.addEventListener('click', () => { $('#imgDtIn').value = b.dataset.dt; syncImageSlots(); updateAll(); }));
 $('#dotSens').addEventListener('input', e => $('#dotSensOut').textContent = e.target.value);
 $('#dotBtn').addEventListener('click', runDotDetect);
 $('#roiBtn').addEventListener('click', () => setTool('roi'));
@@ -2209,7 +2246,7 @@ function makeTapeImage() {
 async function loadTapeDemo() {
   if ($('#advOn').checked) { $('#advOn').checked = false; syncAdv(); }
   const c = makeTapeImage();
-  $('#imgHz').value = 60; $('#imgN').value = 6; $('#dotPol').value = 'dark'; $('#dotDia').value = 6; $('#dotSens').value = 70; $('#dotSensOut').textContent = 70; $('#dotOrder').value = 'auto';
+  setTimeMode('hz'); $('#imgHz').value = 60; $('#imgN').value = 6; $('#dotPol').value = 'dark'; $('#dotDia').value = 6; $('#dotSens').value = 70; $('#dotSensOut').textContent = 70; $('#dotOrder').value = 'auto';
   setImageSource(c, '示範：打點計時器紙帶', true);
   state.roi = { x0: 90, y0: 125, x1: 1220, y1: 185 };
   state.scale = { x1: 140, y1: 222, x2: 1140, y2: 222 };
