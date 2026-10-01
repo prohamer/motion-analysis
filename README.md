@@ -334,14 +334,3 @@
 
 頁面字型從 Google Fonts 載入；如果學校網路擋住，會自動改用系統字型，功能不受影響。
 
----
-
-## 給老師：用 GitHub Pages 發布
-
-1. 在 GitHub 建立新的儲存庫 `motion-analysis`，設為 Public。
-2. 按 **Add file → Upload files**，上傳 `index.html` 和 `README.md`，再按 **Commit changes**。
-3. 開啟 **Settings → Pages**。
-4. **Source** 選 **Deploy from a branch**，Branch 選 `main`、資料夾選 `/ (root)`，按 **Save**。
-5. 等一到兩分鐘，網址就是 <https://prohamer.github.io/motion-analysis/>。
-
-之後要更新，只要再上傳新的 `index.html` 覆蓋舊檔即可。網頁標題旁的「?」會連到這份說明；如果儲存庫改了名稱，要一起修改 `index.html` 裡的連結。
