@@ -1,0 +1,2294 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="頻閃軌跡分析：導入影片、打點計時器紙帶或重複曝光照片，疊加影格、標記或自動追蹤物體、設定比例尺與透視校正，算出位置、速度、加速度並畫出圖表。所有處理都在瀏覽器內完成。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230A7670'/%3E%3Cg fill='%23FF8A3D'%3E%3Ccircle cx='12' cy='48' r='5'/%3E%3Ccircle cx='24' cy='26' r='5'/%3E%3Ccircle cx='36' cy='16' r='5'/%3E%3Ccircle cx='48' cy='22' r='5'/%3E%3Ccircle cx='56' cy='40' r='5'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+:root{color-scheme:light}
+html,body{margin:0}
+body{font-size:14px;-webkit-text-size-adjust:100%}
+img{max-width:100%}
+</style>
+<title>頻閃軌跡分析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#E8EDEC; --panel:#F7F9F9; --panel2:#EEF3F2; --ink:#142120; --muted:#56696A; --line:#CBD6D4;
+  --accent:#0A7670; --accent-ink:#FFFFFF; --accent-soft:#D3EBE8; --warn:#A5541B;
+  --stage:#0A0E0E;
+  --sans:"IBM Plex Sans","Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --mono:"IBM Plex Mono","Noto Sans TC",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0E1514; --panel:#152020; --panel2:#1B2828; --ink:#E1EBE9; --muted:#8CA19F; --line:#283837;
+    --accent:#3EC1B5; --accent-ink:#04201D; --accent-soft:#16393A; --warn:#E39A5E;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0E1514; --panel:#152020; --panel2:#1B2828; --ink:#E1EBE9; --muted:#8CA19F; --line:#283837;
+  --accent:#3EC1B5; --accent-ink:#04201D; --accent-soft:#16393A; --warn:#E39A5E;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;padding-inline:16px;padding-block:0 40px}
+.wrap{max-width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+button,input,select{font:inherit;color:inherit}
+.num,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:16px 2px}
+.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.brand h1{font-size:20px;font-weight:700;margin:0;letter-spacing:.02em;text-wrap:balance}
+.brand p{margin:0;color:var(--muted);font-size:13px}
+.help{align-self:center;display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;border:1.5px solid var(--accent);color:var(--accent);font-weight:700;font-size:15px;text-decoration:none;line-height:1;flex:none}
+.help:hover{background:var(--accent);color:var(--accent-ink)}
+.help:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (pointer:coarse){.help{width:32px;height:32px;font-size:17px}}
+.badge{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-weight:500}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 12px;border-radius:6px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:13px;white-space:nowrap;min-height:32px}
+.btn:hover{border-color:var(--accent)}
+.btn:focus-visible,.chip:focus-visible,input:focus-visible,select:focus-visible,.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.attn{box-shadow:0 0 0 3px var(--accent-soft)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 350px;grid-template-rows:auto 1fr;gap:14px;align-items:start}
+.layout>.stagecol{grid-column:1;grid-row:1}
+.layout>.side{grid-column:2;grid-row:1 / span 2;position:sticky;top:env(safe-area-inset-top,0px);max-height:100vh;overflow:auto;padding-bottom:12px;scrollbar-width:thin}
+.layout>.results{grid-column:1;grid-row:2}
+@media (max-width:960px){.layout{grid-template-columns:minmax(0,1fr);grid-template-rows:none}.layout>.stagecol,.layout>.side,.layout>.results{grid-column:1;grid-row:auto;position:static;max-height:none;overflow:visible}}
+
+.stagecol{display:flex;flex-direction:column;gap:8px;min-width:0}
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:transparent;padding:6px 11px;cursor:pointer;font-size:13px;min-height:30px;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.hint{font-size:13px;color:var(--muted);flex:1 1 220px;min-width:0}
+.hint b{color:var(--ink);font-weight:600}
+
+.stage{position:relative;width:100%;max-width:100%;max-height:72vh;min-height:240px;background:var(--stage);border-radius:8px;overflow:hidden;touch-action:none;user-select:none}
+.stage canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
+.stage[data-tool="pan"] canvas{cursor:grab}
+.stage[data-tool="point"] canvas,.stage[data-tool="scale"] canvas,.stage[data-tool="origin"] canvas,.stage[data-tool="roi"] canvas,.stage[data-tool="quad"] canvas{cursor:crosshair}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(6,10,10,.72);color:#E6F2F0;font-size:15px;pointer-events:none}
+.overlay .box{padding:14px 20px;border:1px dashed #5fd2c6;border-radius:8px;background:rgba(10,20,20,.8)}
+
+.framebar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.framebar input[type=range]{flex:1 1 200px;min-width:120px;accent-color:var(--accent)}
+.framebar .btn{padding:4px 8px;min-height:28px}
+.readout{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--muted);min-width:170px}
+.readout b{color:var(--ink);font-weight:500}
+
+.side{display:flex;flex-direction:column;gap:10px}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:0}
+.step>summary,.chartcard>summary,.tablecard>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:11px 14px;border-radius:8px}
+.step>summary::-webkit-details-marker,.chartcard>summary::-webkit-details-marker,.tablecard>summary::-webkit-details-marker{display:none}
+.step>summary::after,.chartcard>summary::after,.tablecard>summary::after{content:"";margin-left:auto;flex:none;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s}
+.step[open]>summary::after,.chartcard[open]>summary::after,.tablecard[open]>summary::after{transform:rotate(45deg)}
+.step>summary:hover,.chartcard>summary:hover,.tablecard>summary:hover{background:var(--panel2)}
+.step>summary:focus-visible,.chartcard>summary:focus-visible,.tablecard>summary:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.step .body{display:flex;flex-direction:column;gap:9px;padding:0 14px 13px}
+.chartcard,.tablecard{background:var(--panel);border:1px solid var(--line);border-radius:8px;min-width:0}
+.chartcard>summary h3,.tablecard>summary h3{margin:0;font-size:14px;font-weight:600;white-space:nowrap}
+.chartcard .peek{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.chartcard .peek .em{color:var(--accent);font-weight:500}
+.chartcard .cbody,.tablecard .cbody{display:flex;flex-direction:column;gap:10px;padding:0 14px 13px}
+.chartlist{display:flex;flex-direction:column;gap:8px;min-width:0}
+.reshead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:6px}
+.reshead h2{margin:0;font-size:16px;font-weight:600}
+@media (prefers-reduced-motion:reduce){.step>summary::after,.chartcard>summary::after,.tablecard>summary::after{transition:none}}
+.step.current{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.step h2{display:flex;align-items:center;gap:8px;margin:0;font-size:14.5px;font-weight:600}
+.step h2 .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);font-family:var(--mono);font-size:12px;font-weight:500;flex:none}
+.step.current h2 .n{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.step.done h2 .n{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.step p.note,.note{margin:0;color:var(--muted);font-size:12.5px}
+.sub{border-top:1px dashed var(--line);padding-top:9px;display:flex;flex-direction:column;gap:8px}
+.sub h4{margin:0;font-size:13px;font-weight:600}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.field{display:flex;align-items:center;gap:6px;font-size:13px}
+.field label{color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+input[type=number],input[type=text],select{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:4px 7px;min-height:30px}
+input[type=number]{width:78px;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.stack{display:flex;flex-direction:column;gap:3px;font-size:12.5px}
+.stack label{color:var(--muted)}
+.stack input,.stack select{width:100%}
+.stack .check input,.check input{width:auto;flex:none}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12.5px;margin:0}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+input[type=range]{accent-color:var(--accent)}
+.chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(36px,1fr));gap:4px}
+.chip{border:1px solid var(--line);background:var(--panel2);border-radius:5px;padding:3px 0;font-family:var(--mono);font-size:12px;cursor:pointer;color:var(--muted)}
+.chip.done{background:var(--accent-soft);color:var(--accent);border-color:transparent;font-weight:500}
+.chip.on{outline:2px solid #FF4F8B;outline-offset:-1px;color:var(--ink)}
+.check{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+
+.results{display:flex;flex-direction:column;gap:8px;min-width:0}
+.chartopts{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.chartbox canvas{cursor:crosshair}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card h3{margin:0;font-size:14.5px;font-weight:600}
+.cardhead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.chartbox{position:relative;width:100%;height:320px}
+.chartbox canvas{position:absolute;inset:0;width:100%;height:100%}
+.fitout{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px;min-height:1.5em;line-height:1.7}
+.fitout .em{color:var(--accent);font-weight:500}
+.tablebox{overflow:auto;max-height:400px;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12.5px}
+th,td{padding:4px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{position:sticky;top:0;background:var(--panel2);font-weight:500;color:var(--muted);font-family:var(--sans)}
+td:first-child,th:first-child{text-align:center}
+.empty{color:var(--muted);font-size:13px;padding:14px;text-align:center}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:6px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
+.modal{position:fixed;inset:0;background:rgba(5,10,10,.6);display:flex;align-items:center;justify-content:center;padding:16px;z-index:15}
+.mbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;max-width:min(1100px,100%);max-height:100%;overflow:auto;display:flex;flex-direction:column;gap:10px}
+.mbox img{max-width:100%;border-radius:6px;background:#000}
+/* ---- phones & tablets ---- */
+.mnav{display:none}
+@media (max-width:960px){
+  .mnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:12;gap:6px;padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));background:var(--panel);border-top:1px solid var(--line);box-shadow:0 -4px 16px rgba(0,0,0,.08)}
+  .mnav button{flex:1;min-height:42px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-weight:600;font-size:14px;cursor:pointer}
+  .mnav button:focus-visible{outline:2px solid var(--accent)}
+  body{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+  .toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+  .chartbox{height:260px}
+  .tablebox{max-height:340px}
+}
+@media (max-width:640px){
+  .top{padding-block:12px 0;gap:8px}
+  .brand h1{font-size:18px}
+  .brand p{display:none}
+  .top>.row{width:100%}
+  .top>.row select{flex:1;min-width:0}
+  .hint{flex-basis:100%;order:9;font-size:12.5px}
+  .toolbar{gap:6px}
+  .seg button{padding:6px 9px}
+  .stage{max-height:62vh}
+  .readout{min-width:0;flex:1 1 100%}
+}
+@media (pointer:coarse){
+  .btn,.seg button{min-height:40px}
+  .chip{padding:7px 0;font-size:13px}
+  .check{min-height:32px}
+  .check input{width:18px;height:18px}
+  input[type=number],select{min-height:38px}
+  .framebar .btn{min-height:38px;padding:4px 10px}
+  input[type=range]{height:28px}
+}
+.hiddenvid{position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>頻閃軌跡分析</h1>
+      <a class="help" href="https://github.com/prohamer/motion-analysis#readme" target="_blank" rel="noopener" title="使用說明與數據分析介紹" aria-label="使用說明（開啟新分頁）">?</a>
+      <span class="badge" id="srcBadge">示範影片</span>
+      <p id="flowText">導入影片 → 選起點 → 疊加影格 → 標記或自動追蹤 → 設比例尺</p>
+    </div>
+    <div class="row">
+      <label class="btn primary" for="file">導入影片或照片…</label>
+      <input type="file" id="file" accept="video/*,image/*,.mp4,.mov,.webm,.m4v,.jpg,.jpeg,.png,.heic" hidden>
+      <select id="demoSel" aria-label="選擇示範">
+        <option value="proj">示範：拋體運動</option>
+        <option value="circle">示範：等速圓周運動</option>
+        <option value="ramp">示範：斜面加速直線運動</option>
+        <option value="tape">示範：打點計時器紙帶（照片）</option>
+        <option value="persp">示範：斜拍桌面（四點透視校正）</option>
+      </select>
+      <button class="btn" id="demoBtn" type="button">載入示範</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="stagecol">
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="工具">
+          <button type="button" data-tool="pan" aria-pressed="false">移動</button>
+          <button type="button" data-tool="point" aria-pressed="false">標記點</button>
+          <button type="button" data-tool="scale" aria-pressed="false">比例尺</button>
+          <button type="button" data-tool="origin" aria-pressed="false">座標軸</button>
+          <button type="button" data-tool="roi" aria-pressed="false" data-img hidden>框選範圍</button>
+          <button type="button" data-tool="quad" aria-pressed="false" id="quadSeg" hidden>四角校正</button>
+        </div>
+        <div class="seg" role="group" aria-label="畫面" data-vid>
+          <button type="button" data-view="live" aria-pressed="false">原始影格</button>
+          <button type="button" data-view="composite" aria-pressed="false">疊加</button>
+          <button type="button" data-view="single" aria-pressed="false">單格</button>
+        </div>
+        <div class="seg" role="group" aria-label="縮放">
+          <button type="button" id="zoomOut" aria-label="縮小">−</button>
+          <button type="button" id="zoomFit">符合</button>
+          <button type="button" id="zoomIn" aria-label="放大">+</button>
+        </div>
+        <button class="btn" type="button" id="exportImg">匯出影像</button>
+        <span class="hint" id="hint"></span>
+      </div>
+      <div class="stage" id="stage" data-tool="pan">
+        <canvas id="cv"></canvas>
+        <div class="overlay" id="dropOv" hidden><div class="box">放開以導入影片或照片</div></div>
+        <div class="overlay" id="busyOv" hidden><div class="box" id="busyText">處理中…</div></div>
+      </div>
+      <div class="framebar" data-vid>
+        <button class="btn" type="button" data-step="-10" aria-label="後退 10 格">−10</button>
+        <button class="btn" type="button" data-step="-1" aria-label="後退 1 格">−1</button>
+        <input type="range" id="scrub" min="0" max="0" value="0" aria-label="影格">
+        <button class="btn" type="button" data-step="1" aria-label="前進 1 格">+1</button>
+        <button class="btn" type="button" data-step="10" aria-label="前進 10 格">+10</button>
+        <span class="readout" id="frameOut">影格 <b>0</b> / 0 · 0.000 s</span>
+        <button class="btn" type="button" id="setStart2">設為起點</button>
+      </div>
+    </section>
+
+    <aside class="side">
+      <details class="step" id="st0" open>
+        <summary><h2><span class="n">0</span><span id="st0Title">影片</span></h2></summary>
+        <div class="body">
+        <dl class="kv">
+          <dt>檔案</dt><dd id="fileName">—</dd>
+          <dt>解析度</dt><dd id="resOut">—</dd>
+          <dt data-vid>長度</dt><dd id="durOut" data-vid>—</dd>
+        </dl>
+        <div data-img hidden>
+          <div class="grid2">
+            <div class="stack"><label for="imgHz">打點／閃光頻率 Hz</label><input type="number" id="imgHz" min="0.1" max="100000" step="any" value="60"></div>
+            <div class="stack"><label for="imgN">每幾個點標一次</label><input type="number" id="imgN" min="1" max="100" step="1" value="6"></div>
+          </div>
+          <div class="row" style="gap:6px">
+            <span class="note">常用：</span>
+            <button class="btn" type="button" data-hz="60" style="min-height:26px;padding:2px 8px">60 Hz</button>
+            <button class="btn" type="button" data-hz="50" style="min-height:26px;padding:2px 8px">50 Hz</button>
+          </div>
+          <dl class="kv" style="margin-top:6px"><dt>標記點的時間間隔 Δt</dt><dd id="imgDt">—</dd></dl>
+          <p class="note">台灣電源是 60 Hz，打點計時器每秒打 60 點（每點 1/60 s）。每 6 點標一次，Δt = 0.1 s。重複曝光照片請填閃光頻率，並把「每幾個點標一次」設為 1。</p>
+        </div>
+        <div class="grid2" data-vid>
+          <div class="stack"><label for="fps">影片 fps（播放）</label>
+            <div class="row" style="flex-wrap:nowrap"><input type="number" id="fps" min="1" max="1000" step="any" value="60"><button class="btn" type="button" id="detectBtn" style="padding:4px 8px">偵測</button></div></div>
+          <div class="stack"><label for="capFps">拍攝 fps（計時用）</label><input type="number" id="capFps" min="1" max="100000" step="any" value="60"></div>
+        </div>
+        <p class="note" data-vid>慢動作影片請把「拍攝 fps」改成實際拍攝格率（例如 240），時間才會正確。</p>
+        </div>
+      </details>
+
+      <details class="step" id="st1" open data-vid>
+        <summary><h2><span class="n">1</span>選擇分析起點</h2></summary>
+        <div class="body">
+        <p class="note">用畫面下方時間軸找到物體開始運動的影格，按「設為起點」。方向鍵 ← → 可逐格移動。</p>
+        <div class="row"><span>起點：</span><b class="num" id="startOut">影格 0</b><button class="btn" type="button" id="setStart">設為目前影格</button></div>
+        </div>
+      </details>
+
+      <details class="step" id="st2" open data-vid>
+        <summary><h2><span class="n">2</span>影格疊加（重複曝光）</h2></summary>
+        <div class="body">
+        <div class="grid2">
+          <div class="stack"><label for="stepN">每隔幾格取一張</label><input type="number" id="stepN" min="1" max="500" step="1" value="4"></div>
+          <div class="stack"><label for="countK">疊加張數</label><input type="number" id="countK" min="2" max="60" step="1" value="19"></div>
+        </div>
+        <div class="stack"><label for="mode">疊加方式</label>
+          <select id="mode">
+            <option value="fg">前景疊加（自動去背景，建議）</option>
+            <option value="light">取最亮（暗背景＋亮物體）</option>
+            <option value="dark">取最暗（亮背景＋暗物體）</option>
+            <option value="avg">平均（半透明殘影）</option>
+          </select></div>
+        <div class="stack" id="thrWrap"><label for="thr">前景判定門檻 <span class="num" id="thrOut">24</span></label><input type="range" id="thr" min="4" max="100" value="24"></div>
+        <dl class="kv">
+          <dt>涵蓋影格</dt><dd id="covFrames">—</dd>
+          <dt>時間間隔 Δt</dt><dd id="covDt">—</dd>
+          <dt>總時間</dt><dd id="covT">—</dd>
+        </dl>
+        <button class="btn primary" type="button" id="buildBtn">產生疊加影像</button>
+        </div>
+      </details>
+
+      <details class="step" id="st3" open>
+        <summary><h2><span class="n">3</span>標記物體位置</h2></summary>
+        <div class="body">
+        <p class="note" data-vid>手動：在疊加影像上依時間順序點擊物體中心。切到「單格」可逐張確認。點編號可重標該點。</p>
+        <p class="note" data-img hidden>手動：依時間順序點擊每個要標記的點（例如每 6 點點一次）。點編號後再點畫面可重標；選取點後按 Delete 或「刪除選取點」可移除。</p>
+        <div class="chips" id="chips"></div>
+        <div class="row">
+          <button class="btn" type="button" id="undoBtn">復原上一點</button>
+          <button class="btn" type="button" id="clearBtn">清除全部</button>
+          <button class="btn" type="button" id="delBtn">刪除選取點</button>
+        </div>
+        <div data-vid class="stack" style="gap:6px">
+          <button class="btn" type="button" id="trimBtn">只保留已標記的範圍</button>
+          <p class="note">標到一半不想標了，後面的點可以直接不標，分析只會用有標記的點。按這個鈕會把疊加影像也縮短到最後一個標記點，畫面比較乾淨。</p>
+        </div>
+        <label class="check"><input type="checkbox" id="autoAdv" checked>標記後自動跳到下一個位置</label>
+        <div class="sub" data-img hidden>
+          <h4>自動偵測點</h4>
+          <div class="grid2">
+            <div class="stack"><label for="dotPol">點的樣子</label>
+              <select id="dotPol"><option value="dark">亮背景上的暗點（紙帶）</option><option value="light">暗背景上的亮點（閃光照片）</option></select></div>
+            <div class="stack"><label for="dotDia">點的直徑約 px</label><input type="number" id="dotDia" min="2" max="200" step="1" value="6"></div>
+          </div>
+          <div class="stack"><label for="dotSens">靈敏度 <span class="num" id="dotSensOut">70</span>（越高抓到越多點）</label><input type="range" id="dotSens" min="10" max="100" value="70"></div>
+          <div class="stack"><label for="dotOrder">第 1 點在</label>
+            <select id="dotOrder"><option value="auto">自動（靠近已點的第 1 點，否則左邊或上面）</option><option value="left">左邊</option><option value="right">右邊</option><option value="top">上面</option><option value="bottom">下面</option></select></div>
+          <div class="row">
+            <button class="btn" type="button" id="roiBtn">框選偵測範圍</button>
+            <button class="btn" type="button" id="roiClear">清除範圍</button>
+          </div>
+          <button class="btn primary" type="button" id="dotBtn">自動偵測點</button>
+          <p class="note">先用「框選偵測範圍」框住紙帶，避免抓到尺上的刻度或文字。偵測到全部的點後，會依「每幾個點標一次」取點；在「資料來源」選「全部的點」可分析每一個點。點太擠、重疊的起始段請框在範圍外。</p>
+        </div>
+        <div class="sub" data-vid>
+          <h4>自動追蹤</h4>
+          <div class="stack"><label for="trkMode">追蹤方式</label>
+            <select id="trkMode">
+              <option value="ncc">外觀比對（一般情況）</option>
+              <option value="fg">前景偵測（相機固定、背景不動）</option>
+            </select></div>
+          <div class="stack"><label for="trkStep">追蹤影格</label>
+            <select id="trkStep">
+              <option value="dense">逐格追蹤，再依疊加間隔取點（建議）</option>
+              <option value="sampled">只追疊加用的影格（較快）</option>
+            </select></div>
+          <div class="grid2">
+            <div class="stack"><label for="trkR">追蹤框半徑 px</label><input type="number" id="trkR" min="4" max="60" step="1" value="12"></div>
+            <div class="stack"><label for="trkS">搜尋範圍 px</label><input type="number" id="trkS" min="10" max="300" step="1" value="60"></div>
+          </div>
+          <button class="btn primary" type="button" id="trackBtn">自動追蹤</button>
+          <p class="note" id="trkNote">先點一下第 1 個位置的物體當起點（前景偵測可省略），會從選取的點往後追蹤並覆寫後面的點。逐格追蹤每格位移小，曲線、轉彎、快速物體都比較不會跟丟，並保留每一格的完整軌跡。追丟時會停下來，手動點好那一格後再按一次即可接著追。</p>
+        </div>
+        </div>
+      </details>
+
+      <details class="step" id="st4" open>
+        <summary><h2><span class="n">4</span>比例尺與座標軸</h2></summary>
+        <div class="body">
+        <p class="note">比例尺：在已知長度的物體上拖出一條線（Shift 鎖水平/垂直），再輸入實際長度。</p>
+        <div class="row">
+          <button class="btn" type="button" id="scaleTool">畫比例尺</button>
+          <label class="check"><input type="checkbox" id="scaleMove">拖動比例尺位置</label>
+          <span class="field"><label for="realLen">長度</label><input type="number" id="realLen" min="0" step="any" value="1"></span>
+          <select id="unit" aria-label="單位"><option value="m">m</option><option value="cm">cm</option><option value="mm">mm</option></select>
+        </div>
+        <p class="note">座標軸：點一下設原點；按住拖曳可旋轉 x 軸（斜面運動可讓 x 軸沿斜面）。</p>
+        <div class="row">
+          <button class="btn" type="button" id="originTool">設座標軸</button>
+          <span class="field"><label for="angDeg">x 軸角度</label><input type="number" id="angDeg" step="any" value="0"><span class="note">°</span></span>
+          <button class="btn" type="button" id="axisReset">重設</button>
+        </div>
+        <dl class="kv">
+          <dt>線段像素長</dt><dd id="pxLen">—</dd>
+          <dt>換算</dt><dd id="perPx">未設定（以 px 計）</dd>
+          <dt>原點</dt><dd id="originOut">第 1 個標記點</dd>
+        </dl>
+        <div class="sub">
+          <h4>畫面標示（也會套用到匯出影像）</h4>
+          <label class="check"><input type="checkbox" id="lblT">每點的時間 t</label>
+          <label class="check"><input type="checkbox" id="lblD">相鄰兩點間的距離 Δd</label>
+          <label class="check"><input type="checkbox" id="lblS">到起點的累積路徑長 s</label>
+          <label class="check"><input type="checkbox" id="lblR">到起點的直線距離（位移大小）</label>
+          <label class="check"><input type="checkbox" id="expMarks" checked>匯出影像時包含標記、比例尺與座標軸</label>
+          <p class="note">未設比例尺時以 px 顯示。</p>
+        </div>
+        </div>
+      </details>
+
+      <details class="step" id="st5" open>
+        <summary><h2><span class="n">5</span>距離校正（進階）</h2></summary>
+        <div class="body">
+        <label class="check" style="color:var(--ink)"><input type="checkbox" id="advOn"><b>啟用距離校正</b></label>
+        <p class="note">相機沒有正對運動平面，或尺和物體不在同一個平面時使用。啟用後，所有距離、速度都會改用校正後的數值。</p>
+          <div id="advBox" class="stack" style="gap:10px" hidden>
+            <div class="stack"><label for="calMode">校正方法</label>
+              <select id="calMode">
+                <option value="homo">四點透視校正（推薦，可修正任何斜拍角度）</option>
+                <option value="depth">距離修正（尺和運動不在同一個平面）</option>
+                <option value="tilt">拍攝夾角修正（近似）</option>
+              </select></div>
+            <div data-cal="homo" class="stack" style="gap:8px">
+              <p class="note">在運動平面上放一個已知尺寸的長方形（A4 紙 29.7 × 21 cm、地磚、黑板），依序點它的 <b>左下 → 右下 → 右上 → 左上</b> 四個角。畫面會畫出校正格線，格線貼合平面就表示校正正確。這時不需要畫比例尺。</p>
+              <div class="row">
+                <button class="btn" type="button" id="quadTool">點選四個角</button>
+                <button class="btn" type="button" id="quadClear">清除四角</button>
+              </div>
+              <label class="check"><input type="checkbox" id="hideGrid">隱藏透視格線與四角標示</label>
+              <div class="grid2">
+                <div class="stack"><label for="qW">寬（左下→右下）</label><input type="number" id="qW" min="0" step="any" value="29.7"></div>
+                <div class="stack"><label for="qH">高（左下→左上）</label><input type="number" id="qH" min="0" step="any" value="21"></div>
+              </div>
+              <p class="note">單位與上方「長度」的單位相同。</p>
+            </div>
+            <div data-cal="depth" class="stack" style="gap:8px" hidden>
+              <div class="grid2">
+                <div class="stack"><label for="dRuler">相機到尺的距離</label><input type="number" id="dRuler" min="0" step="any" value="200"></div>
+                <div class="stack"><label for="dMotion">相機到運動平面的距離</label><input type="number" id="dMotion" min="0" step="any" value="170"></div>
+              </div>
+              <p class="num" id="depthOut" style="margin:0;font-size:12.5px"></p>
+              <p class="note">兩個距離的單位相同即可。例：尺貼在牆上距相機 200 cm，球在牆前 30 cm 處移動，運動平面距相機 170 cm，實際距離 = 量到的 × 170/200。尺和運動平面都要和鏡頭正對。</p>
+            </div>
+            <div data-cal="tilt" class="stack" style="gap:8px" hidden>
+              <div class="grid2">
+                <div class="stack"><label for="tiltDeg">鏡頭與平面法線的夾角 °</label><input type="number" id="tiltDeg" min="0" max="80" step="any" value="30"></div>
+                <div class="stack"><label for="tiltDir">傾斜方向</label>
+                  <select id="tiltDir"><option value="v">上下（從斜上方往下拍）</option><option value="h">左右（從側邊斜拍）</option></select></div>
+              </div>
+              <p class="note">正對拍攝時夾角是 0°。這個方法把傾斜方向的距離除以 cos θ，只在相機離得比拍攝範圍遠很多時才準；比例尺要放在運動平面上。能放長方形參考物時，建議改用四點透視校正。</p>
+            </div>
+          </div>
+        </div>
+      </details>
+    </aside>
+  <section class="results">
+    <div class="reshead">
+      <h2>分析結果</h2>
+      <div class="row">
+        <span class="field"><label for="dataSrc">資料來源</label>
+          <select id="dataSrc">
+            <option value="pts">疊加取樣點</option>
+            <option value="dense" id="denseOpt">逐格追蹤（全部影格）</option>
+          </select></span>
+        <button class="btn" type="button" id="expandAll">全部展開</button>
+        <button class="btn" type="button" id="collapseAll">全部收合</button>
+      </div>
+    </div>
+    <details class="tablecard" open>
+      <summary><h3>數據表</h3><span class="note" id="rowCount"></span></summary>
+      <div class="cbody">
+        <div class="row">
+          <button class="btn" type="button" id="copyBtn">複製表格</button>
+          <button class="btn" type="button" id="csvBtn">下載 CSV</button>
+        </div>
+        <div class="tablebox" id="tableBox"></div>
+        <p class="note">第一點和最後一點的前後缺少相鄰點，無法用「前後兩點」算出速度與加速度，所以顯示「—」，代表「沒有算」，不是「速度為 0」。</p>
+      </div>
+    </details>
+    <div class="chartlist" id="chartList"></div>
+  </section>
+  </main>
+
+</div>
+<div class="modal" id="modal" hidden>
+  <div class="mbox">
+    <div class="cardhead"><b id="mTitle">匯出</b><button class="btn" type="button" id="mClose">關閉</button></div>
+    <p class="note">這個檢視無法直接下載。請在圖片上按右鍵選「另存圖片」，手機可長按圖片儲存。</p>
+    <img id="mImg" alt="匯出的影像">
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<nav class="mnav" aria-label="快速跳轉">
+  <button type="button" data-go=".stagecol">畫面</button>
+  <button type="button" data-go=".side">設定</button>
+  <button type="button" data-go=".results">結果</button>
+</nav>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const PT = '#FF4F8B', SC = '#FFD23F', OR = '#4FD1FF';
+const DEG = Math.PI / 180;
+const COARSE = (() => { try { return matchMedia('(pointer: coarse)').matches; } catch (_) { return false; } })();
+const HIT = COARSE ? 22 : 12;            // touch needs a larger grab radius
+const MAXW = COARSE ? 960 : 1280;        // phones: smaller analysis frames to save memory
+
+const state = {
+  src: null, W: 0, H: 0, fps: 60, capFps: 60, frameCount: 0,
+  cur: 0, start: 0, N: 4, K: 19, mode: 'fg', thr: 24,
+  frames: [], comp: null, bg: null, buildSig: '', stale: true,
+  view: 'live', tool: 'pan',
+  points: [], target: 0, armed: false,
+  scale: null, len: 1, unit: 'm', origin: null, ang: 0,
+  busy: false, rows: [], unitLabel: 'px',
+  track: new Map()
+};
+function resetTrack() { state.track = new Map(); const o = $('#dataSrc'); o.querySelector('[value=dense]').disabled = true; o.value = 'pts'; }
+const view = { s: 1, tx: 0, ty: 0, fit: 1 };
+
+const cv = $('#cv'), ctx = cv.getContext('2d');
+const stage = $('#stage');
+const img = document.createElement('canvas'), imgCtx = img.getContext('2d', { willReadFrequently: true });
+const work = document.createElement('canvas'), workCtx = work.getContext('2d', { willReadFrequently: true });
+let dpr = window.devicePixelRatio || 1;
+
+const dlPromise = (window.claude && window.claude.use) ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
+
+/* ---------- utilities ---------- */
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const fmt = v => (v == null || !isFinite(v)) ? '—' :
+  Math.abs(v) >= 1000 ? v.toFixed(0) : Math.abs(v) >= 100 ? v.toFixed(1) : Math.abs(v) >= 1 ? v.toFixed(3) : v.toFixed(4);
+const sig = v => (v == null || !isFinite(v)) ? '—' : Number(v.toPrecision(4)).toString();
+const nextPaint = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+let toastT;
+function toast(msg, ms) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, ms || 2800); }
+function busyOn(text) { state.busy = true; $('#busyText').textContent = text; $('#busyOv').hidden = false; }
+function busyText(text) { $('#busyText').textContent = text; }
+function busyOff() { state.busy = false; $('#busyOv').hidden = true; }
+
+/* ---------- demo sources ---------- */
+function makeDemo(type) {
+  const W = 1280, H = 720, fps = 60, n = 96;
+  const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+  const b = bg.getContext('2d');
+  const g = b.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#3B4548'); g.addColorStop(1, '#22292B');
+  b.fillStyle = g; b.fillRect(0, 0, W, H);
+  b.strokeStyle = 'rgba(255,255,255,0.06)'; b.lineWidth = 1;
+  for (let x = 0; x <= W; x += 80) { b.beginPath(); b.moveTo(x + .5, 0); b.lineTo(x + .5, 628); b.stroke(); }
+  for (let y = 0; y <= 628; y += 80) { b.beginPath(); b.moveTo(0, y + .5); b.lineTo(W, y + .5); b.stroke(); }
+  b.fillStyle = '#5A4533'; b.fillRect(0, 628, W, H - 628);
+  b.fillStyle = '#7A5E45'; b.fillRect(0, 628, W, 4);
+  let pos, label;
+  if (type === 'circle') {
+    label = '示範：等速圓周運動 · 60 fps';
+    const cx = 640, cy = 330, R = 200, w = 2 * Math.PI * 0.75;
+    b.strokeStyle = 'rgba(255,255,255,0.12)'; b.lineWidth = 2; b.beginPath(); b.arc(cx, cy, R, 0, Math.PI * 2); b.stroke();
+    b.fillStyle = '#1C1F20'; b.beginPath(); b.arc(cx, cy, 8, 0, Math.PI * 2); b.fill();
+    pos = i => { const t = i / fps; return [cx + R * Math.cos(w * t), cy - R * Math.sin(w * t)]; };
+  } else if (type === 'ramp') {
+    label = '示範：斜面加速（20°）· 60 fps';
+    const A = [160, 250], B = [1160, 614];
+    b.fillStyle = '#4C5A5E'; b.beginPath(); b.moveTo(A[0], A[1]); b.lineTo(B[0], B[1]); b.lineTo(B[0], 628); b.lineTo(A[0], 628); b.closePath(); b.fill();
+    b.strokeStyle = '#8EA0A4'; b.lineWidth = 3; b.beginPath(); b.moveTo(A[0], A[1]); b.lineTo(B[0], B[1]); b.stroke();
+    const L = Math.hypot(B[0] - A[0], B[1] - A[1]), ux = (B[0] - A[0]) / L, uy = (B[1] - A[1]) / L, nx = uy, ny = -ux;
+    const acc = 2450 * Math.sin(20 * DEG);
+    pos = i => { const t = Math.max(0, (i - 10) / fps); const s = 40 + 0.5 * acc * t * t; const sc = Math.min(s, L - 20); return [A[0] + ux * sc + nx * 15, A[1] + uy * sc + ny * 15]; };
+  } else {
+    label = '示範：水平拋出的球 · 60 fps';
+    b.fillStyle = '#1C1F20'; b.fillRect(132, 614, 56, 14);
+    pos = i => {
+      if (i < 10) return [160, 600];
+      const t = (i - 10) / fps;
+      let x = 160 + 826 * t, y = 600 - 1485 * t + 1225 * t * t;
+      if (y > 614 && t > 0.6) y = 614;
+      return [x, y];
+    };
+  }
+  b.fillStyle = '#E8C547'; b.fillRect(140, 648, 250, 20);
+  b.fillStyle = '#2A2410';
+  for (let i = 0; i <= 100; i++) { const x = 140 + i * 2.5; const h = i % 10 === 0 ? 10 : i % 5 === 0 ? 7 : 4; b.fillRect(x - .5, 648, 1, h); }
+  b.font = '600 11px sans-serif'; b.fillText('0', 143, 665); b.fillText('100 cm', 346, 665);
+  b.fillStyle = 'rgba(255,255,255,0.35)'; b.font = '14px sans-serif'; b.fillText(label, 24, 32);
+  return {
+    kind: 'demo', type, name: label.split(' · ')[0], W, H, fps, duration: n / fps, pos,
+    draw: async (i, c) => {
+      c.drawImage(bg, 0, 0);
+      const [x, y] = pos(i);
+      const rg = c.createRadialGradient(x - 4, y - 5, 2, x, y, 14);
+      rg.addColorStop(0, '#FFD2A8'); rg.addColorStop(.5, '#FF8A3D'); rg.addColorStop(1, '#C4501A');
+      c.fillStyle = rg; c.beginPath(); c.arc(x, y, 13, 0, Math.PI * 2); c.fill();
+    }
+  };
+}
+
+/* ---------- video source ---------- */
+function seekTo(v, t) {
+  t = clamp(t, 0, Math.max(0, v.duration - 1e-3));
+  return new Promise(res => {
+    let done = false; const fin = () => { if (!done) { done = true; res(); } };
+    if (Math.abs(v.currentTime - t) < 1e-6 && v.readyState >= 2) return fin();
+    v.addEventListener('seeked', () => {
+      if (v.requestVideoFrameCallback) { v.requestVideoFrameCallback(() => fin()); setTimeout(fin, 60); } else fin();
+    }, { once: true });
+    v.currentTime = t;
+    setTimeout(fin, 4000);
+  });
+}
+
+async function loadVideo(file) {
+  const url = URL.createObjectURL(file);
+  const v = document.createElement('video');
+  v.muted = true; v.playsInline = true; v.preload = 'auto'; v.className = 'hiddenvid'; v.src = url;
+  document.body.appendChild(v);
+  busyOn('讀取影片…');
+  try {
+    await new Promise((res, rej) => {
+      v.addEventListener('loadeddata', res, { once: true });
+      v.addEventListener('error', () => rej(new Error('decode')), { once: true });
+      setTimeout(() => rej(new Error('timeout')), 20000);
+    });
+    if (!v.videoWidth) throw new Error('decode');
+  } catch (e) {
+    busyOff(); v.remove(); URL.revokeObjectURL(url);
+    toast('這個瀏覽器無法解碼此影片，請轉成 MP4（H.264）後再試', 5000);
+    return;
+  }
+  if (state.src && state.src.video) { state.src.video.remove(); URL.revokeObjectURL(state.src.url); }
+  const k = Math.min(1, MAXW / Math.max(v.videoWidth, v.videoHeight * 16 / 9));
+  const W = Math.round(v.videoWidth * k), H = Math.round(v.videoHeight * k);
+  const src = {
+    kind: 'video', name: file.name, W, H, video: v, url, duration: v.duration,
+    origW: v.videoWidth, origH: v.videoHeight,
+    draw: async (i, c) => { await seekTo(v, (i + 0.5) / state.fps); c.drawImage(v, 0, 0, W, H); }
+  };
+  busyText('偵測影格率…');
+  const f = await detectFps(v);
+  busyOff();
+  setSource(src, f || 30, { start: 0, N: 3, K: 12 });
+  $('#trkMode').value = 'ncc';
+  if (!f) toast('無法自動偵測 fps，已設為 30，請確認', 4000);
+  else toast(`偵測到約 ${f} fps，請確認是否正確`, 4000);
+}
+
+function detectFps(v) {
+  if (!v.requestVideoFrameCallback) return Promise.resolve(null);
+  return new Promise(res => {
+    const diffs = []; let last = null, ended = false;
+    const finish = () => {
+      if (ended) return; ended = true; v.pause();
+      if (diffs.length < 4) return res(null);
+      diffs.sort((a, b) => a - b);
+      const d = diffs[Math.floor(diffs.length * 0.25)];
+      const f = 1 / d;
+      const common = [23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60, 90, 100, 120, 240];
+      const hit = common.find(c => Math.abs(c - f) / c < 0.03);
+      res(hit || Math.round(f));
+    };
+    const cb = (now, meta) => {
+      if (ended) return;
+      if (last !== null) { const d = meta.mediaTime - last; if (d > 1e-4) diffs.push(d); }
+      last = meta.mediaTime;
+      if (diffs.length < 24 && !v.ended) v.requestVideoFrameCallback(cb); else finish();
+    };
+    v.currentTime = 0;
+    v.requestVideoFrameCallback(cb);
+    v.play().catch(finish);
+    setTimeout(finish, 2500);
+  });
+}
+
+function setSource(src, fps, opts) {
+  state.src = src; state.W = src.W; state.H = src.H;
+  img.width = work.width = src.W; img.height = work.height = src.H;
+  state.fps = fps; state.capFps = fps;
+  state.frameCount = Math.max(1, Math.floor(src.duration * fps + 1e-6));
+  state.start = opts.start; state.N = opts.N; state.K = opts.K; state.cur = opts.start;
+  state.frames = []; state.comp = null; state.bg = null; state.buildSig = ''; state.stale = true;
+  state.points = []; state.target = 0; state.scale = null; state.origin = null; state.ang = 0;
+  state.dots = null; state.roi = null; state.quad = []; updateHomography();
+  resetTrack(); applyMode();
+  $('#angDeg').value = 0;
+  $('#fps').value = fps; $('#capFps').value = fps;
+  $('#stepN').value = opts.N; $('#countK').value = opts.K;
+  $('#fileName').textContent = src.name;
+  $('#resOut').textContent = src.kind === 'video' && src.origW !== src.W ? `${src.origW}×${src.origH}（分析 ${src.W}×${src.H}）` : `${src.W}×${src.H}`;
+  $('#durOut').textContent = src.duration.toFixed(2) + ' s';
+  $('#srcBadge').hidden = src.kind !== 'demo';
+  if (src.kind === 'demo') $('#srcBadge').textContent = src.name;
+  stage.style.aspectRatio = `${src.W} / ${src.H}`;
+  syncScrub();
+  resize(); fitView();
+  setView('live'); setTool('pan');
+  showLive(state.cur);
+  updateAll();
+}
+
+/* ---------- photo mode (ticker tape / strobe photo) ---------- */
+const isImg = () => !!state.src && state.src.kind === 'image';
+function applyMode() {
+  const im = isImg();
+  $$('[data-img]').forEach(el => el.hidden = !im);
+  $$('[data-vid]').forEach(el => el.hidden = im);
+  $('#st0Title').textContent = im ? '照片與時間間隔' : '影片';
+  $('#flowText').textContent = im ? '導入照片 → 設定時間間隔 → 標記或自動偵測點 → 設比例尺' : '導入影片 → 選起點 → 疊加影格 → 標記或自動追蹤 → 設比例尺';
+  $('#denseOpt').textContent = im ? '全部的點' : '逐格追蹤（全部影格）';
+  $('#dataSrc').querySelector('[value=pts]').textContent = im ? '標記的點' : '疊加取樣點';
+}
+function imgTiming() {
+  const hz = +$('#imgHz').value, n = clamp(Math.round(+$('#imgN').value) || 1, 1, 100);
+  return { hz: hz > 0 ? hz : 60, n };
+}
+/* keep frames = one slot per point plus one empty slot at the end; time of point k = k·n / Hz */
+function syncImageSlots() {
+  if (!isImg()) return;
+  const { hz, n } = imgTiming();
+  state.fps = state.capFps = hz; state.N = n;
+  const P = state.points;
+  while (P.length && P[P.length - 1] == null && (P.length < 2 || P[P.length - 2] == null)) P.pop();
+  if (!P.length || P[P.length - 1]) P.push(null);
+  state.frames = P.map((_, k) => ({ f: k * n, data: state.comp }));
+  state.target = clamp(state.target, 0, P.length - 1);
+  $('#imgDt').textContent = `${n} ÷ ${sig(hz)} = ${sig(n / hz)} s`;
+}
+function resampleFromDots() {
+  if (!state.dots || !state.dots.length) return;
+  const { n } = imgTiming();
+  state.points = state.dots.filter((_, i) => i % n === 0).map(p => ({ x: p.x, y: p.y }));
+  state.track = new Map(state.dots.map((p, i) => [i, { x: p.x, y: p.y }]));
+  $('#denseOpt').disabled = state.dots.length < 3;
+  state.target = state.points.length; state.armed = false;
+}
+async function loadImageFile(file) {
+  const url = URL.createObjectURL(file);
+  busyOn('讀取照片…');
+  const im = new Image();
+  try {
+    await new Promise((res, rej) => { im.onload = res; im.onerror = rej; im.src = url; });
+  } catch (_) {
+    busyOff(); URL.revokeObjectURL(url);
+    toast('這個瀏覽器無法開啟此照片格式，請轉成 JPG 或 PNG 後再試', 5000); return;
+  }
+  busyOff();
+  setImageSource(im, file.name, false);
+  URL.revokeObjectURL(url);
+}
+function setImageSource(im, name, demo) {
+  if (state.src && state.src.video) { state.src.video.remove(); URL.revokeObjectURL(state.src.url); }
+  const ow = im.naturalWidth || im.width, oh = im.naturalHeight || im.height;
+  const k = Math.min(1, 1600 / Math.max(ow, oh));
+  const W = Math.round(ow * k), H = Math.round(oh * k);
+  state.src = { kind: 'image', demo, name, W, H, origW: ow, origH: oh, duration: 0, draw: async (i, c) => c.drawImage(im, 0, 0, W, H) };
+  state.W = W; state.H = H;
+  img.width = work.width = W; img.height = work.height = H;
+  imgCtx.drawImage(im, 0, 0, W, H);
+  state.comp = imgCtx.getImageData(0, 0, W, H);
+  state.bg = null; state.stale = false; state.buildSig = 'img';
+  state.frameCount = 1; state.start = 0; state.cur = 0;
+  state.points = []; state.target = 0; state.armed = false; state.dots = null; state.roi = null; state.quad = []; updateHomography();
+  state.scale = null; state.origin = null; state.ang = 0; $('#angDeg').value = 0;
+  resetTrack();
+  applyMode();
+  syncImageSlots();
+  $('#fileName').textContent = name;
+  $('#resOut').textContent = ow !== W ? `${ow}×${oh}（分析 ${W}×${H}）` : `${W}×${H}`;
+  $('#srcBadge').hidden = !demo; if (demo) $('#srcBadge').textContent = name;
+  stage.style.aspectRatio = `${W} / ${H}`;
+  resize(); fitView();
+  state.view = 'composite';
+  $$('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === 'composite'));
+  setTool('point');
+  updateAll();
+}
+function loadAnyFile(f) {
+  if (!f) return;
+  if ((f.type || '').startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|heic)$/i.test(f.name)) loadImageFile(f);
+  else loadVideo(f);
+}
+function deletePoint(k) {
+  if (k < 0 || !state.points[k]) return;
+  if (isImg()) {
+    state.points.splice(k, 1);
+    if (state.dots) { state.dots = null; resetTrack(); toast('已刪除該點；「全部的點」資料已清除，需要時請重新偵測'); }
+    state.target = Math.min(k, state.points.length);
+  } else state.points[k] = null;
+  state.armed = false;
+  updateAll();
+}
+
+/* dot detection on the photo */
+function detectDots() {
+  const W = state.W, H = state.H, G = grayOf(state.comp.data, W * H);
+  const dark = $('#dotPol').value === 'dark';
+  const dia = clamp(+$('#dotDia').value || 6, 2, 200);
+  const thr = 108 - clamp(+$('#dotSens').value || 70, 10, 100);
+  const Rb = Math.max(6, Math.round(dia * 2.5));
+  let x0 = 0, y0 = 0, x1 = W - 1, y1 = H - 1;
+  if (state.roi) { const r = state.roi; x0 = clamp(Math.round(Math.min(r.x0, r.x1)), 0, W - 1); x1 = clamp(Math.round(Math.max(r.x0, r.x1)), 0, W - 1); y0 = clamp(Math.round(Math.min(r.y0, r.y1)), 0, H - 1); y1 = clamp(Math.round(Math.max(r.y0, r.y1)), 0, H - 1); }
+  const W1 = W + 1, I = new Float64Array(W1 * (H + 1));
+  for (let y = 0; y < H; y++) { let row = 0; for (let x = 0; x < W; x++) { row += G[y * W + x]; I[(y + 1) * W1 + x + 1] = I[y * W1 + x + 1] + row; } }
+  const D = new Float32Array(W * H), mask = new Uint8Array(W * H);
+  for (let y = y0; y <= y1; y++) {
+    const ya = Math.max(0, y - Rb), yb = Math.min(H - 1, y + Rb);
+    for (let x = x0; x <= x1; x++) {
+      const xa = Math.max(0, x - Rb), xb = Math.min(W - 1, x + Rb);
+      const sum = I[(yb + 1) * W1 + xb + 1] - I[ya * W1 + xb + 1] - I[(yb + 1) * W1 + xa] + I[ya * W1 + xa];
+      const mean = sum / ((xb - xa + 1) * (yb - ya + 1)), p = y * W + x;
+      const d = dark ? mean - G[p] : G[p] - mean;
+      if (d > thr) { mask[p] = 1; D[p] = d; }
+    }
+  }
+  const A0 = Math.PI * dia * dia / 4, comps = [], stack = [];
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const p0 = y * W + x; if (mask[p0] !== 1) continue;
+    mask[p0] = 2; stack.push(p0);
+    let area = 0, sw = 0, sx = 0, sy = 0, mnx = x, mxx = x, mny = y, mxy = y;
+    while (stack.length) {
+      const p = stack.pop(), px = p % W, py = (p - px) / W, w = D[p];
+      area++; sw += w; sx += w * px; sy += w * py;
+      if (px < mnx) mnx = px; if (px > mxx) mxx = px; if (py < mny) mny = py; if (py > mxy) mxy = py;
+      if (px > x0 && mask[p - 1] === 1) { mask[p - 1] = 2; stack.push(p - 1); }
+      if (px < x1 && mask[p + 1] === 1) { mask[p + 1] = 2; stack.push(p + 1); }
+      if (py > y0 && mask[p - W] === 1) { mask[p - W] = 2; stack.push(p - W); }
+      if (py < y1 && mask[p + W] === 1) { mask[p + W] = 2; stack.push(p + W); }
+    }
+    const bw = mxx - mnx + 1, bh = mxy - mny + 1;
+    if (area < Math.max(3, A0 * 0.15) || area > A0 * 5) continue;
+    if (Math.max(bw, bh) / Math.min(bw, bh) > 3 || area / (bw * bh) < 0.3) continue;
+    comps.push({ x: sx / sw, y: sy / sw, area });
+  }
+  if (comps.length >= 5) {
+    const ar = comps.map(c => c.area).sort((a, b) => a - b), med = ar[ar.length >> 1];
+    return comps.filter(c => c.area >= med / 4 && c.area <= med * 4);
+  }
+  return comps;
+}
+function orderDots(pts) {
+  if (pts.length < 2) return pts;
+  const n = pts.length, mx = pts.reduce((a, p) => a + p.x, 0) / n, my = pts.reduce((a, p) => a + p.y, 0) / n;
+  let sxx = 0, syy = 0, sxy = 0;
+  pts.forEach(p => { const dx = p.x - mx, dy = p.y - my; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; });
+  const th = 0.5 * Math.atan2(2 * sxy, sxx - syy), ux = Math.cos(th), uy = Math.sin(th);
+  const out = pts.map(p => ({ ...p, s: (p.x - mx) * ux + (p.y - my) * uy })).sort((a, b) => a.s - b.s);
+  const a = out[0], b = out[out.length - 1];
+  let want = $('#dotOrder').value;
+  let flip = false;
+  const first = state.points.find(Boolean);
+  if (want === 'auto' && first && !state.dots) flip = Math.hypot(b.x - first.x, b.y - first.y) < Math.hypot(a.x - first.x, a.y - first.y);
+  else {
+    if (want === 'auto') want = Math.abs(ux) >= Math.abs(uy) ? 'left' : 'top';
+    flip = want === 'left' ? a.x > b.x : want === 'right' ? a.x < b.x : want === 'top' ? a.y > b.y : a.y < b.y;
+  }
+  return flip ? out.reverse() : out;
+}
+async function runDotDetect() {
+  if (!isImg() || state.busy) return;
+  busyOn('偵測點中…'); await nextPaint();
+  let dots = orderDots(detectDots());
+  busyOff();
+  if (dots.length < 2) { toast('找不到足夠的點。請調高靈敏度、確認點的樣子與直徑，或重新框選範圍', 5000); return; }
+  state.dots = dots.map(p => ({ x: p.x, y: p.y }));
+  resampleFromDots();
+  syncImageSlots();
+  const { n } = imgTiming();
+  toast(`偵測到 ${dots.length} 個點，每 ${n} 點取一，標記了 ${state.points.filter(Boolean).length} 點`, 4500);
+  setTool('point');
+  updateAll();
+}
+
+/* ---------- live preview ---------- */
+let liveBusy = false, livePending = null;
+async function showLive(i) {
+  livePending = i;
+  if (liveBusy) return;
+  liveBusy = true;
+  while (livePending !== null) {
+    const f = livePending; livePending = null;
+    if (state.busy) break;
+    await state.src.draw(f, imgCtx);
+  }
+  liveBusy = false;
+  draw();
+}
+async function waitLiveIdle() { while (liveBusy) await new Promise(r => setTimeout(r, 20)); }
+
+function syncScrub() {
+  const s = $('#scrub'); s.max = state.frameCount - 1; s.value = state.cur;
+  $('#frameOut').innerHTML = `影格 <b>${state.cur}</b> / ${state.frameCount - 1} · ${(state.cur / state.capFps).toFixed(3)} s`;
+}
+function gotoFrame(i) {
+  if (!state.src || isImg()) return;
+  state.cur = clamp(Math.round(i), 0, state.frameCount - 1);
+  syncScrub();
+  if (state.view !== 'live') setView('live', true);
+  showLive(state.cur);
+}
+
+/* ---------- build & composite ---------- */
+function frameList() {
+  const out = [];
+  for (let k = 0; k < state.K; k++) { const f = state.start + k * state.N; if (f >= state.frameCount) break; out.push(f); }
+  return out;
+}
+async function build() {
+  if (!state.src || state.busy) return false;
+  const list = frameList();
+  if (list.length < 2) { toast('涵蓋範圍不足 2 張，請提早起點或減少間隔'); return false; }
+  await waitLiveIdle();
+  busyOn(`擷取影格 0 / ${list.length}`);
+  const frames = [];
+  for (let k = 0; k < list.length; k++) {
+    await state.src.draw(list[k], workCtx);
+    frames.push({ f: list[k], data: workCtx.getImageData(0, 0, state.W, state.H) });
+    busyText(`擷取影格 ${k + 1} / ${list.length}`);
+  }
+  const sigNow = [state.start, state.N, list.length, state.fps].join('|');
+  if (sigNow !== state.buildSig) {
+    if (state.points.some(Boolean)) toast('疊加設定已改變，舊的標記已清除');
+    state.points = new Array(list.length).fill(null); state.target = 0;
+    resetTrack();
+  }
+  state.buildSig = sigNow; state.frames = frames;
+  busyText('計算背景與合成…'); await nextPaint();
+  computeBg(); composite();
+  busyOff();
+  state.stale = false;
+  setView('composite'); setTool('point');
+  updateAll();
+  return true;
+}
+
+function computeBg() {
+  const fr = state.frames, n = fr.length, len = state.W * state.H;
+  const m = Math.min(n, 9);
+  const idx = Array.from({ length: m }, (_, j) => Math.round(j * (n - 1) / Math.max(1, m - 1)));
+  const S = idx.map(j => fr[j].data.data);
+  const bg = new Uint8ClampedArray(len * 3);
+  const tmp = new Int16Array(m), half = m >> 1;
+  for (let p = 0, i = 0; p < len; p++, i += 4) {
+    for (let c = 0; c < 3; c++) {
+      for (let j = 0; j < m; j++) {
+        const v = S[j][i + c]; let q = j - 1;
+        while (q >= 0 && tmp[q] > v) { tmp[q + 1] = tmp[q]; q--; }
+        tmp[q + 1] = v;
+      }
+      bg[p * 3 + c] = tmp[half];
+    }
+  }
+  state.bg = bg;
+}
+
+function composite() {
+  const fr = state.frames; if (!fr.length) return;
+  const n = fr.length, W = state.W, H = state.H, len = W * H;
+  const D = fr.map(f => f.data.data);
+  const out = new ImageData(W, H), o = out.data;
+  const mode = state.mode;
+  if (mode === 'light' || mode === 'dark') {
+    const sgn = mode === 'light' ? 1 : -1;
+    for (let p = 0, i = 0; p < len; p++, i += 4) {
+      let best = 0, bv = -Infinity;
+      for (let k = 0; k < n; k++) { const d = D[k]; const l = (d[i] * 2 + d[i + 1] * 5 + d[i + 2]) * sgn; if (l > bv) { bv = l; best = k; } }
+      const d = D[best]; o[i] = d[i]; o[i + 1] = d[i + 1]; o[i + 2] = d[i + 2]; o[i + 3] = 255;
+    }
+  } else if (mode === 'avg') {
+    for (let i = 0; i < len * 4; i += 4) {
+      let r = 0, g = 0, b = 0;
+      for (let k = 0; k < n; k++) { const d = D[k]; r += d[i]; g += d[i + 1]; b += d[i + 2]; }
+      o[i] = r / n; o[i + 1] = g / n; o[i + 2] = b / n; o[i + 3] = 255;
+    }
+  } else {
+    const bg = state.bg, thr = state.thr * 3;
+    for (let p = 0, i = 0; p < len; p++, i += 4) {
+      const b0 = bg[p * 3], b1 = bg[p * 3 + 1], b2 = bg[p * 3 + 2];
+      let best = -1, bv = thr;
+      for (let k = 0; k < n; k++) {
+        const d = D[k];
+        const df = Math.abs(d[i] - b0) + Math.abs(d[i + 1] - b1) + Math.abs(d[i + 2] - b2);
+        if (df > bv) { bv = df; best = k; }
+      }
+      if (best >= 0) { const d = D[best]; o[i] = d[i]; o[i + 1] = d[i + 1]; o[i + 2] = d[i + 2]; }
+      else { o[i] = b0; o[i + 1] = b1; o[i + 2] = b2; }
+      o[i + 3] = 255;
+    }
+  }
+  state.comp = out;
+}
+
+/* keep only the overlay frames up to the last marked point */
+function trimToMarked() {
+  if (!state.frames.length || state.stale || isImg()) { toast('請先產生疊加影像'); return; }
+  let last = -1; state.points.forEach((p, k) => { if (p) last = k; });
+  if (last < 1) { toast('至少要先標記 2 個點'); return; }
+  if (last === state.frames.length - 1) { toast('已經是全部標記，不需要縮短'); return; }
+  const n = last + 1;
+  state.frames = state.frames.slice(0, n); state.points = state.points.slice(0, n);
+  state.K = n; $('#countK').value = n;
+  const lastF = state.frames[n - 1].f;
+  for (const f of [...state.track.keys()]) if (f > lastF) state.track.delete(f);
+  state.buildSig = [state.start, state.N, n, state.fps].join('|');
+  computeBg(); composite();
+  state.target = clamp(state.target, 0, n - 1);
+  if (state.view === 'composite') imgCtx.putImageData(state.comp, 0, 0); else if (state.view === 'single') setView('single');
+  toast(`已縮短為 ${n} 個位置`);
+  updateAll();
+}
+
+/* ---------- auto tracking ---------- */
+function grayOf(d, n) {
+  const g = new Float32Array(n);
+  for (let p = 0, i = 0; p < n; p++, i += 4) g[p] = d[i] * .299 + d[i + 1] * .587 + d[i + 2] * .114;
+  return g;
+}
+function getGray(k) {
+  const f = state.frames[k];
+  if (!f.gray) f.gray = grayOf(f.data.data, state.W * state.H);
+  return f.gray;
+}
+function normalizeT(T) {
+  let m = 0; for (let i = 0; i < T.length; i++) m += T[i]; m /= T.length;
+  let s = 0; for (let i = 0; i < T.length; i++) { T[i] -= m; s += T[i] * T[i]; }
+  s = Math.sqrt(s); if (s < 1e-3) return null;
+  for (let i = 0; i < T.length; i++) T[i] /= s;
+  return T;
+}
+/* G: gray buffer of size Gw×Gh, coordinates local to that buffer */
+function patch(G, Gw, Gh, x, y, r) {
+  x = clamp(Math.round(x), r, Gw - 1 - r); y = clamp(Math.round(y), r, Gh - 1 - r);
+  const s = 2 * r + 1, T = new Float32Array(s * s); let i = 0;
+  for (let dy = -r; dy <= r; dy++) { const row = (y + dy) * Gw + x; for (let dx = -r; dx <= r; dx++) T[i++] = G[row + dx]; }
+  return normalizeT(T);
+}
+function nccAt(G, Gw, x, y, r, T) {
+  let s = 0, s2 = 0, st = 0, i = 0;
+  for (let dy = -r; dy <= r; dy++) {
+    const row = (y + dy) * Gw + x;
+    for (let dx = -r; dx <= r; dx++) { const v = G[row + dx]; s += v; s2 += v * v; st += v * T[i++]; }
+  }
+  const vr = s2 - s * s / i;
+  return vr < 1e-6 ? -1 : st / Math.sqrt(vr);
+}
+function searchNCC(G, Gw, Gh, T, r, cx, cy, S) {
+  let best = -2, bx = 0, by = 0;
+  const scan = (x0, x1, y0, y1, st) => {
+    for (let y = Math.max(r, y0); y <= Math.min(Gh - 1 - r, y1); y += st)
+      for (let x = Math.max(r, x0); x <= Math.min(Gw - 1 - r, x1); x += st) {
+        const s = nccAt(G, Gw, x, y, r, T); if (s > best) { best = s; bx = x; by = y; }
+      }
+  };
+  cx = Math.round(cx); cy = Math.round(cy);
+  const st = S > 30 ? 3 : S > 12 ? 2 : 1;
+  scan(cx - S, cx + S, cy - S, cy + S, st);
+  if (best < -1) return null;
+  if (st > 1) { const x0 = bx, y0 = by; scan(x0 - st, x0 + st, y0 - st, y0 + st, 1); }
+  let sx = bx, sy = by;
+  if (bx > r && bx < Gw - 1 - r) { const l = nccAt(G, Gw, bx - 1, by, r, T), rr = nccAt(G, Gw, bx + 1, by, r, T), den = l - 2 * best + rr; if (den < 0) sx = bx + clamp(0.5 * (l - rr) / den, -.5, .5); }
+  if (by > r && by < Gh - 1 - r) { const u = nccAt(G, Gw, bx, by - 1, r, T), d = nccAt(G, Gw, bx, by + 1, r, T), den = u - 2 * best + d; if (den < 0) sy = by + clamp(0.5 * (u - d) / den, -.5, .5); }
+  return { x: sx, y: sy, ix: bx, iy: by, score: best };
+}
+/* region: {d (RGBA), w, h, ox, oy}; cx, cy in global image coordinates */
+function fgCentroid(R, cx, cy, S, r2) {
+  const bg = state.bg, W = state.W, thr = Math.max(30, state.thr * 3);
+  const pass = (cx, cy, S) => {
+    let sw = 0, sx = 0, sy = 0, cnt = 0;
+    const x0 = Math.max(R.ox, Math.round(cx - S)), x1 = Math.min(R.ox + R.w - 1, Math.round(cx + S));
+    const y0 = Math.max(R.oy, Math.round(cy - S)), y1 = Math.min(R.oy + R.h - 1, Math.round(cy + S));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const p = y * W + x, i = ((y - R.oy) * R.w + (x - R.ox)) * 4, d = R.d;
+      const df = Math.abs(d[i] - bg[p * 3]) + Math.abs(d[i + 1] - bg[p * 3 + 1]) + Math.abs(d[i + 2] - bg[p * 3 + 2]);
+      if (df > thr) { const w = df - thr; sw += w; sx += w * x; sy += w * y; cnt++; }
+    }
+    return cnt >= 4 ? { x: sx / sw, y: sy / sw } : null;
+  };
+  let c = pass(cx, cy, S); if (!c) return null;
+  const c2 = pass(c.x, c.y, r2); if (c2) c = pass(c2.x, c2.y, r2) || c2;
+  return c;
+}
+const fullRegion = k => ({ d: state.frames[k].data.data, w: state.W, h: state.H, ox: 0, oy: 0 });
+async function grabRegion(f, cx, cy, half) {
+  const x0 = clamp(Math.floor(cx - half), 0, state.W - 1), y0 = clamp(Math.floor(cy - half), 0, state.H - 1);
+  const x1 = clamp(Math.ceil(cx + half), x0, state.W - 1), y1 = clamp(Math.ceil(cy + half), y0, state.H - 1);
+  await state.src.draw(f, workCtx);
+  const w = x1 - x0 + 1, h = y1 - y0 + 1;
+  return { d: workCtx.getImageData(x0, y0, w, h).data, w, h, ox: x0, oy: y0 };
+}
+function predict(hist) {
+  const n = hist.length, p1 = hist[n - 1];
+  if (n >= 3) { const p0 = hist[n - 2], pm = hist[n - 3]; return { x: 3 * p1.x - 3 * p0.x + pm.x, y: 3 * p1.y - 3 * p0.y + pm.y }; }
+  if (n === 2) { const p0 = hist[0]; return { x: 2 * p1.x - p0.x, y: 2 * p1.y - p0.y }; }
+  return { x: p1.x, y: p1.y };
+}
+
+async function autoTrack() {
+  if (state.busy) return;
+  if (!state.frames.length || state.stale) { toast('請先產生疊加影像（步驟 2）'); return; }
+  const n = state.frames.length, P = state.points;
+  const method = $('#trkMode').value, dense = $('#trkStep').value === 'dense';
+  const r = clamp(Math.round(+$('#trkR').value) || 12, 4, 60), S = clamp(Math.round(+$('#trkS').value) || 60, 10, 300);
+  let seed = -1;
+  if (P[state.target]) seed = state.target;
+  else { for (let k = state.target - 1; k >= 0; k--) if (P[k]) { seed = k; break; } if (seed < 0) seed = P.findIndex(Boolean); }
+  if (seed < 0) {
+    if (method === 'fg') {
+      const c = fgCentroid(fullRegion(0), state.W / 2, state.H / 2, Math.max(state.W, state.H), r * 2);
+      if (!c) { toast('找不到移動中的物體，請先手動點第 1 個位置'); return; }
+      P[0] = { x: c.x, y: c.y }; seed = 0;
+    } else { toast('請先在第 1 個位置點一下物體，當作追蹤起點'); return; }
+  }
+  if (seed >= n - 1) { toast('這已經是最後一個位置，請選前面的點當起點'); return; }
+  let T0 = null, T = null;
+  if (method === 'ncc') {
+    T0 = patch(getGray(seed), state.W, state.H, P[seed].x, P[seed].y, r);
+    if (!T0) { toast('起點附近對比太低，請加大追蹤框或改用前景偵測'); return; }
+    T = T0;
+  }
+  const updateT = (G, Gw, Gh, x, y) => {
+    const Tn = patch(G, Gw, Gh, x, y, r);
+    if (Tn) { const M = new Float32Array(T0.length); for (let i = 0; i < M.length; i++) M[i] = T0[i] + Tn[i]; T = normalizeT(M) || T0; }
+  };
+  await waitLiveIdle();
+  busyOn('自動追蹤中…'); await nextPaint();
+  let stoppedK = -1, stoppedF = -1, count = 0;
+
+  if (!dense) {
+    const hist = [];
+    for (let k = Math.max(0, seed - 2); k <= seed; k++) if (P[k]) hist.push(P[k]);
+    if (!hist.length || hist[hist.length - 1] !== P[seed]) hist.push(P[seed]);
+    for (let k = seed + 1; k < n; k++) {
+      const pred = predict(hist), S2 = hist.length < 2 ? Math.round(S * 1.6) : S;
+      let res = null;
+      if (method === 'ncc') { res = searchNCC(getGray(k), state.W, state.H, T, r, pred.x, pred.y, S2); if (res && res.score < 0.55) res = null; }
+      else res = fgCentroid(fullRegion(k), pred.x, pred.y, S2, r * 2);
+      if (!res) { stoppedK = k; stoppedF = state.frames[k].f; break; }
+      P[k] = { x: res.x, y: res.y }; hist.push(P[k]); if (hist.length > 3) hist.shift(); count++;
+      if (method === 'ncc') updateT(getGray(k), state.W, state.H, res.ix, res.iy);
+      if (k % 3 === 0) { busyText(`自動追蹤中… ${k + 1} / ${n}`); await nextPaint(); }
+    }
+  } else {
+    const kOf = new Map(state.frames.map((fr, k) => [fr.f, k]));
+    const f0 = state.frames[seed].f, f1 = state.frames[n - 1].f;
+    for (const f of [...state.track.keys()]) if (f > f0) state.track.delete(f);
+    state.track.set(f0, { x: P[seed].x, y: P[seed].y });
+    const hist = [P[seed]];
+    for (let f = f0 + 1; f <= f1; f++) {
+      const pred = predict(hist);
+      const R = await grabRegion(f, pred.x, pred.y, S + r + 2);
+      let res = null;
+      if (method === 'ncc') {
+        const G = grayOf(R.d, R.w * R.h);
+        const m = searchNCC(G, R.w, R.h, T, r, pred.x - R.ox, pred.y - R.oy, S);
+        if (m && m.score >= 0.55) { res = { x: m.x + R.ox, y: m.y + R.oy }; updateT(G, R.w, R.h, m.ix, m.iy); }
+      } else res = fgCentroid(R, pred.x, pred.y, S, r * 2);
+      if (!res) { stoppedF = f; break; }
+      state.track.set(f, res); hist.push(res); if (hist.length > 3) hist.shift();
+      if (kOf.has(f)) { P[kOf.get(f)] = { x: res.x, y: res.y }; count++; }
+      if ((f - f0) % 4 === 0) { busyText(`逐格追蹤中… 影格 ${f}（${f - f0} / ${f1 - f0}）`); await nextPaint(); }
+    }
+    if (stoppedF >= 0) { stoppedK = state.frames.findIndex(fr => fr.f >= stoppedF); for (const f of [...state.track.keys()]) if (f >= stoppedF) state.track.delete(f); }
+  }
+  busyOff();
+  if (stoppedK >= 0) {
+    for (let k = stoppedK; k < n; k++) P[k] = null;
+    state.target = stoppedK; state.armed = true;
+    toast(`在影格 ${stoppedF} 跟丟了物體，已停下。請手動點第 ${stoppedK + 1} 個位置，再按「自動追蹤」接著追。`, 6500);
+  } else {
+    state.target = n - 1; state.armed = false;
+    toast(dense ? `已逐格追蹤 ${state.frames[n - 1].f - state.frames[seed].f} 格，取出 ${P.filter(Boolean).length} 個疊加點` : `已自動追蹤 ${count} 個位置，可切到「單格」逐張檢查`);
+  }
+  if (dense && state.track.size > 2) $('#dataSrc').querySelector('[value=dense]').disabled = false;
+  if (state.view === 'live') setView('composite'); else if (state.view === 'single') setView('single');
+  setTool('point');
+  updateAll();
+}
+
+/* ---------- view ---------- */
+function setView(v, silent) {
+  if ((v === 'composite' || v === 'single') && !state.frames.length) { if (!silent) toast('請先在步驟 2 產生疊加影像'); return; }
+  state.view = v;
+  $$('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === v));
+  if (v === 'composite' && state.comp) imgCtx.putImageData(state.comp, 0, 0);
+  else if (v === 'single') { const k = clamp(state.target, 0, state.frames.length - 1); imgCtx.putImageData(state.frames[k].data, 0, 0); }
+  else if (v === 'live' && !silent && state.src) showLive(state.cur);
+  updateHint(); draw();
+}
+function setTool(t) {
+  state.tool = t; stage.dataset.tool = t;
+  $$('[data-tool]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === t));
+  if (t === 'point' && state.view === 'live' && state.frames.length) setView('composite');
+  updateHint(); draw();
+}
+function updateHint() {
+  const h = $('#hint'); const t = state.tool;
+  if (!state.src) { h.textContent = ''; return; }
+  if (t === 'pan') h.innerHTML = COARSE ? '單指拖曳平移；任何工具下都可以用雙指縮放、移動畫面。' : '拖曳平移、滾輪縮放。右鍵或中鍵拖曳在任何工具下都能平移。';
+  else if (t === 'point') {
+    if (!state.frames.length) { h.innerHTML = '請先產生疊加影像。'; return; }
+    const k = clamp(state.target, 0, state.frames.length - 1), f = state.frames[k];
+    if (isImg()) { h.innerHTML = `點擊第 <b>${k + 1}</b> 個標記點（t = ${(f.f / state.capFps).toFixed(3)} s）。拖曳點可微調，點步驟 3 的編號可重標。`; return; }
+    const done = state.points.every(Boolean);
+    h.innerHTML = done && !state.armed ? '全部位置已標記。拖曳點可微調，或點步驟 3 的編號重標。'
+      : `點擊第 <b>${k + 1}</b> 個位置（影格 ${f.f}，t = ${((f.f - state.frames[0].f) / state.capFps).toFixed(3)} s）`;
+  }
+  else if (t === 'scale') h.innerHTML = $('#scaleMove').checked ? '<b>拖曳畫面</b>即可移動整條比例尺（長度不變）。取消勾選「拖動比例尺位置」可重畫。' : '在已知長度的物體上<b>拖出一條線</b>，端點可再拖曳調整。Shift 鎖定水平/垂直。';
+  else if (t === 'quad') { const n = (state.quad || []).length; h.innerHTML = n < 4 ? `依序點長方形的 <b>${['左下', '右下', '右上', '左上'][n]}</b> 角（${n + 1} / 4）` : '四個角已點好，可拖曳角點微調。'; }
+  else if (t === 'roi') h.innerHTML = '在照片上<b>拖出一個框</b>，把紙帶或要偵測的點框起來。';
+  else if (t === 'origin') h.innerHTML = '<b>點一下</b>設原點；從原點<b>按住拖曳</b>到想要的 +x 方向，可旋轉座標軸。';
+}
+
+function resize() {
+  const r = stage.getBoundingClientRect();
+  dpr = window.devicePixelRatio || 1;
+  cv.width = Math.max(1, Math.round(r.width * dpr)); cv.height = Math.max(1, Math.round(r.height * dpr));
+  draw();
+}
+function fitView() {
+  if (!state.W) return;
+  const cw = cv.width / dpr, ch = cv.height / dpr;
+  const s = Math.min(cw / state.W, ch / state.H);
+  view.s = view.fit = s; view.tx = (cw - state.W * s) / 2; view.ty = (ch - state.H * s) / 2;
+  draw();
+}
+function zoomAt(sx, sy, f) {
+  const ns = clamp(view.s * f, view.fit * 0.5, Math.max(40, view.fit * 40));
+  const ix = (sx - view.tx) / view.s, iy = (sy - view.ty) / view.s;
+  view.s = ns; view.tx = sx - ix * ns; view.ty = sy - iy * ns; draw();
+}
+const toScr = (x, y) => [x * view.s + view.tx, y * view.s + view.ty];
+const toImg = (sx, sy) => [(sx - view.tx) / view.s, (sy - view.ty) / view.s];
+
+function effOrigin() {
+  if (state.origin) return state.origin;
+  const p = state.points.find(Boolean);
+  return p ? { x: p.x, y: p.y } : null;
+}
+
+/* overlays drawn on any canvas through a mapping (image → target px) */
+function drawOverlays(c, map, w, h, k, opts) {
+  const o = effOrigin();
+  const font = px => `600 ${Math.round(px * k)}px "IBM Plex Mono", monospace`;
+  if (o) {
+    const [ox, oy] = map(o.x, o.y);
+    const [ux, uy] = axisDirs(o), L = (w + h) * 2;
+    c.save(); c.strokeStyle = OR; c.lineWidth = 1.2 * k; c.globalAlpha = state.origin ? 0.9 : 0.5;
+    if (!state.origin) c.setLineDash([6 * k, 5 * k]);
+    c.beginPath();
+    c.moveTo(ox - ux[0] * L, oy - ux[1] * L); c.lineTo(ox + ux[0] * L, oy + ux[1] * L);
+    c.moveTo(ox - uy[0] * L, oy - uy[1] * L); c.lineTo(ox + uy[0] * L, oy + uy[1] * L);
+    c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
+    c.lineWidth = 2 * k;
+    const arrow = (u, lab) => {
+      const ex = ox + u[0] * 60 * k, ey = oy + u[1] * 60 * k;
+      c.beginPath(); c.moveTo(ox, oy); c.lineTo(ex, ey); c.stroke();
+      const a = Math.atan2(u[1], u[0]);
+      c.beginPath(); c.moveTo(ex, ey); c.lineTo(ex - 9 * k * Math.cos(a - .4), ey - 9 * k * Math.sin(a - .4)); c.lineTo(ex - 9 * k * Math.cos(a + .4), ey - 9 * k * Math.sin(a + .4)); c.closePath(); c.fillStyle = OR; c.fill();
+      c.font = font(12); c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText(lab, ex + u[0] * 14 * k, ey + u[1] * 14 * k);
+    };
+    arrow(ux, '+x'); arrow(uy, '+y');
+    c.restore();
+  }
+  if (state.scale) {
+    const s = state.scale;
+    const [a, b] = map(s.x1, s.y1), [cc, d] = map(s.x2, s.y2);
+    c.save();
+    c.strokeStyle = 'rgba(0,0,0,.6)'; c.lineWidth = 5 * k; c.beginPath(); c.moveTo(a, b); c.lineTo(cc, d); c.stroke();
+    c.strokeStyle = SC; c.lineWidth = 2 * k; c.beginPath(); c.moveTo(a, b); c.lineTo(cc, d); c.stroke();
+    const ang = Math.atan2(d - b, cc - a), nx = -Math.sin(ang) * 8 * k, ny = Math.cos(ang) * 8 * k;
+    [[a, b], [cc, d]].forEach(([x, y]) => { c.beginPath(); c.moveTo(x - nx, y - ny); c.lineTo(x + nx, y + ny); c.stroke(); });
+    const label = `${state.len} ${state.unit}`;
+    c.font = font(13);
+    const tw = c.measureText(label).width, mx = (a + cc) / 2 - nx * 2.2, my = (b + d) / 2 - ny * 2.2;
+    c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(mx - tw / 2 - 5 * k, my - 10 * k, tw + 10 * k, 20 * k);
+    c.fillStyle = SC; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(label, mx, my);
+    c.restore();
+  }
+  if (state.track.size > 1) {
+    const fs = [...state.track.keys()].sort((a, b) => a - b);
+    c.save(); c.strokeStyle = 'rgba(255,79,139,.9)'; c.lineWidth = 1 * k; c.setLineDash([2 * k, 2 * k]);
+    c.beginPath(); fs.forEach((f, i) => { const p = state.track.get(f); const [x, y] = map(p.x, p.y); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.stroke();
+    c.restore();
+  }
+  if (state.points.some(Boolean)) {
+    const pts = state.points.map((p, i) => p ? [i, ...map(p.x, p.y)] : null).filter(Boolean);
+    const u = calibrated() ? state.unit : 'px';
+    const lT = $('#lblT').checked, lD = $('#lblD').checked, lS = $('#lblS').checked, lR = $('#lblR').checked;
+    const f0 = state.frames[0].f;
+    const first = state.points.find(Boolean);
+    const cum = []; let acc = 0, prev = null;
+    state.points.forEach((p, i) => { if (!p) return; if (prev) acc += worldDist(prev, p); cum[i] = acc; prev = p; });
+    const dfmt = v => { const a = Math.abs(v); return a >= 100 ? v.toFixed(1) : a >= 10 ? v.toFixed(2) : v.toFixed(3); };
+    c.save();
+    c.strokeStyle = 'rgba(255,79,139,.55)'; c.lineWidth = 1.2 * k;
+    c.beginPath(); pts.forEach(([, x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.stroke();
+    // segment distances
+    if (lD) {
+      c.font = `500 ${Math.round(10.5 * k)}px "IBM Plex Mono", monospace`; c.textAlign = 'center'; c.textBaseline = 'middle';
+      for (let j = 1; j < pts.length; j++) {
+        const [ia, xa, ya] = pts[j - 1], [ib, xb, yb] = pts[j];
+        const pa = state.points[ia], pb = state.points[ib];
+        const d = worldDist(pa, pb);
+        const len = Math.hypot(xb - xa, yb - ya) || 1; let nx = -(yb - ya) / len, ny = (xb - xa) / len;
+        if (ny < 0 || (Math.abs(ny) < 0.2 && nx < 0)) { nx = -nx; ny = -ny; }
+        const mx = (xa + xb) / 2 + nx * 13 * k, my = (ya + yb) / 2 + ny * 13 * k;
+        const lab = dfmt(d); const tw = c.measureText(lab).width;
+        c.fillStyle = 'rgba(0,0,0,.62)'; c.fillRect(mx - tw / 2 - 3 * k, my - 7 * k, tw + 6 * k, 14 * k);
+        c.fillStyle = SC; c.fillText(lab, mx, my);
+      }
+    }
+    c.font = `500 ${Math.round(11 * k)}px "IBM Plex Mono", monospace`; c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+    pts.forEach(([i, x, y], j) => {
+      const on = opts.highlight && i === state.target;
+      c.globalAlpha = opts.single && !on ? 0.35 : 1;
+      const rad = (on ? 8 : 6) * k;
+      c.lineWidth = 3.5 * k; c.strokeStyle = 'rgba(0,0,0,.65)';
+      c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.stroke();
+      c.lineWidth = (on ? 2.2 : 1.6) * k; c.strokeStyle = PT;
+      c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.stroke();
+      c.fillStyle = PT; c.fillRect(x - k, y - k, 2 * k, 2 * k);
+      const p = state.points[i];
+      const lines = [String(i + 1)];
+      if (lT) lines.push(`t=${((state.frames[i].f - f0) / state.capFps).toFixed(3)}s`);
+      if (lS) lines.push(`s=${dfmt(cum[i])}${u}`);
+      if (lR) lines.push(`r=${dfmt(worldDist(first, p))}${u}`);
+      const lh = 13 * k, tw = Math.max(...lines.map(t => c.measureText(t).width));
+      const below = !lD && lines.length > 1 && j % 2 === 1;
+      const bx = x + 7 * k, by = below ? y + 8 * k : y - 8 * k - lh * lines.length;
+      c.fillStyle = 'rgba(0,0,0,.62)'; c.fillRect(bx, by, tw + 6 * k, lh * lines.length + 3 * k);
+      lines.forEach((t, j) => { c.fillStyle = j ? '#FFFFFF' : '#FFE0EC'; c.fillText(t, bx + 3 * k, by + lh * (j + 1) - 1 * k); });
+    });
+    c.restore();
+  }
+}
+
+let hover = null;
+function draw() {
+  const w = cv.width / dpr, h = cv.height / dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#0A0E0E'; ctx.fillRect(0, 0, w, h);
+  if (!state.src) return;
+  ctx.save(); ctx.translate(view.tx, view.ty); ctx.scale(view.s, view.s);
+  ctx.imageSmoothingEnabled = view.s < 2.5;
+  ctx.drawImage(img, 0, 0);
+  ctx.restore();
+  if (isImg() && state.roi) {
+    const r = state.roi, [ax, ay] = toScr(Math.min(r.x0, r.x1), Math.min(r.y0, r.y1)), [bx, by] = toScr(Math.max(r.x0, r.x1), Math.max(r.y0, r.y1));
+    ctx.save(); ctx.fillStyle = 'rgba(0,0,0,.35)';
+    ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.rect(ax, ay, bx - ax, by - ay); ctx.fill('evenodd');
+    ctx.strokeStyle = '#7FE3D9'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]); ctx.strokeRect(ax, ay, bx - ax, by - ay); ctx.restore();
+  }
+  if (calMode() === 'homo' && state.quad && state.quad.length && (!$('#hideGrid').checked || state.tool === 'quad')) {
+    const q = state.quad, names = ['左下', '右下', '右上', '左上'];
+    ctx.save();
+    if (homoReady()) {
+      const W8 = +$('#qW').value, H8 = +$('#qH').value, ext = 2;
+      ctx.strokeStyle = 'rgba(127,227,217,.45)'; ctx.lineWidth = 1;
+      const line = (X1, Y1, X2, Y2) => { ctx.beginPath(); for (let i = 0; i <= 24; i++) { const X = X1 + (X2 - X1) * i / 24, Y = Y1 + (Y2 - Y1) * i / 24; const [ix, iy] = applyH(state.Hinv, X, Y); const [px, py] = toScr(ix, iy); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.stroke(); };
+      for (let i = -ext * 4; i <= 4 + ext * 4; i++) { const X = W8 * i / 4; line(X, -H8 * ext, X, H8 * (1 + ext)); }
+      for (let j = -ext * 4; j <= 4 + ext * 4; j++) { const Y = H8 * j / 4; line(-W8 * ext, Y, W8 * (1 + ext), Y); }
+    }
+    ctx.strokeStyle = '#7FE3D9'; ctx.lineWidth = 2; ctx.beginPath();
+    q.forEach((c, i) => { const [x, y] = toScr(c.x, c.y); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    if (q.length === 4) ctx.closePath(); ctx.stroke();
+    ctx.font = '600 12px "IBM Plex Sans","Noto Sans TC",sans-serif'; ctx.textBaseline = 'middle';
+    q.forEach((c, i) => { const [x, y] = toScr(c.x, c.y);
+      ctx.fillStyle = '#7FE3D9'; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
+      const lab = `${i + 1} ${names[i]}`, tw = ctx.measureText(lab).width;
+      ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(x + 8, y - 9, tw + 8, 18); ctx.fillStyle = '#7FE3D9'; ctx.fillText(lab, x + 12, y); });
+    ctx.restore();
+  }
+  drawOverlays(ctx, toScr, w, h, 1, { highlight: state.tool === 'point', single: state.view === 'single' });
+
+  if (hover && (state.tool === 'point' || state.tool === 'scale' || state.tool === 'origin')) {
+    const size = Math.min(140, w * 0.3), mag = Math.max(view.s * 3, 3);
+    const sw = size / mag;
+    const [ix, iy] = toImg(hover.sx, hover.sy);
+    const left = hover.sx < size + 30 && hover.sy < size + 30;
+    const dx = left ? w - size - 10 : 10, dy = 10;
+    ctx.save();
+    ctx.fillStyle = '#000'; ctx.fillRect(dx, dy, size, size);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, ix - sw / 2, iy - sw / 2, sw, sw, dx, dy, size, size);
+    ctx.strokeStyle = PT; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(dx + size / 2, dy + size / 2 - 12); ctx.lineTo(dx + size / 2, dy + size / 2 + 12);
+    ctx.moveTo(dx + size / 2 - 12, dy + size / 2); ctx.lineTo(dx + size / 2 + 12, dy + size / 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.strokeRect(dx + .5, dy + .5, size - 1, size - 1);
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(dx, dy + size - 18, size, 18);
+    ctx.fillStyle = '#fff'; ctx.font = '11px "IBM Plex Mono", monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    ctx.fillText(`${ix.toFixed(1)}, ${iy.toFixed(1)} px`, dx + 6, dy + size - 9);
+    ctx.restore();
+  }
+  if (!drag && (hover || state.tapTip >= 0)) {
+    const k = hover ? hitPoint(hover.sx, hover.sy) : (state.points[state.tapTip] ? state.tapTip : -1);
+    if (k >= 0) {
+      const f = state.frames[k].f, row = state.rows.find(r => r.f === f), u = state.unitLabel || 'px';
+      const lines = [isImg() ? `第 ${k + 1} 點` : `第 ${k + 1} 點（影格 ${f}）`];
+      if (row) {
+        lines.push(`t = ${row.t.toFixed(3)} s`, `x = ${fmt(row.x)} ${u}`, `y = ${fmt(row.y)} ${u}`);
+        if (row.v != null) lines.push(`速率 = ${fmt(row.v)} ${u}/s`);
+        lines.push(`路徑長 s = ${fmt(row.s)} ${u}`);
+      }
+      const [px, py] = toScr(state.points[k].x, state.points[k].y);
+      drawTip(ctx, px, py, lines, w, h, 'rgba(10,16,16,.92)', '#F2F7F6', PT);
+    }
+  }
+}
+function drawTip(c, x, y, lines, W, H, bg, fg, edge) {
+  c.save();
+  c.font = '12px "IBM Plex Mono","Noto Sans TC",monospace'; c.textBaseline = 'top'; c.textAlign = 'left';
+  const pad = 7, lh = 16, tw = Math.max(...lines.map(t => c.measureText(t).width)) + pad * 2, th = lines.length * lh + pad * 2 - 2;
+  let bx = x + 14, by = y - th - 10;
+  if (bx + tw > W - 4) bx = x - tw - 14;
+  if (by < 4) by = y + 14;
+  if (by + th > H - 4) by = H - th - 4;
+  bx = Math.max(4, bx);
+  c.fillStyle = bg; c.strokeStyle = edge; c.lineWidth = 1;
+  c.beginPath(); c.roundRect ? c.roundRect(bx, by, tw, th, 5) : c.rect(bx, by, tw, th); c.fill(); c.stroke();
+  lines.forEach((t, i) => { c.fillStyle = fg; c.font = (i ? '' : '600 ') + '12px "IBM Plex Mono","Noto Sans TC",monospace'; c.fillText(t, bx + pad, by + pad + i * lh); });
+  c.restore();
+}
+
+/* ---------- stage interaction ---------- */
+let drag = null, spaceDown = false;
+function localXY(e) { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+function hitPoint(sx, sy) {
+  let best = -1, bd = HIT;
+  state.points.forEach((p, k) => { if (!p) return; const [x, y] = toScr(p.x, p.y); const d = Math.hypot(x - sx, y - sy); if (d < bd) { bd = d; best = k; } });
+  return best;
+}
+function nextEmpty(from) {
+  const n = state.points.length;
+  for (let j = 1; j <= n; j++) { const k = (from + j) % n; if (!state.points[k]) return k; }
+  return -1;
+}
+cv.addEventListener('contextmenu', e => e.preventDefault());
+/* two-finger pinch zoom / pan on touch screens */
+const touches = new Map(); let pinch = null, pinchLock = false, snap = null;
+function takeSnap() {
+  snap = { points: state.points.slice(), scale: state.scale && { ...state.scale }, origin: state.origin && { ...state.origin },
+    quad: (state.quad || []).map(q => ({ ...q })), roi: state.roi && { ...state.roi }, ang: state.ang };
+}
+cv.addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'touch' || !state.src) return;
+  touches.set(e.pointerId, localXY(e));
+  if (touches.size === 1) { pinchLock = false; takeSnap(); return; }
+  e.stopImmediatePropagation();
+  if (touches.size === 2) {
+    if (drag && drag.type !== 'pan' && snap) {   // undo whatever the first finger started
+      Object.assign(state, { points: snap.points, scale: snap.scale, origin: snap.origin, quad: snap.quad, roi: snap.roi, ang: snap.ang });
+      $('#angDeg').value = +(state.ang / DEG).toFixed(2); updateHomography();
+    }
+    drag = null; hover = null; state.tapTip = -1; pinchLock = true;
+    const [a, b] = [...touches.values()];
+    pinch = { d0: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, m0: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], s0: view.s, tx0: view.tx, ty0: view.ty };
+    updateAll();
+  }
+}, true);
+cv.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'touch' || !touches.has(e.pointerId)) return;
+  touches.set(e.pointerId, localXY(e));
+  if (pinch && touches.size >= 2) {
+    const [a, b] = [...touches.values()];
+    const d = Math.hypot(a[0] - b[0], a[1] - b[1]), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const ns = clamp(pinch.s0 * d / pinch.d0, view.fit * 0.5, Math.max(40, view.fit * 40));
+    const ix = (pinch.m0[0] - pinch.tx0) / pinch.s0, iy = (pinch.m0[1] - pinch.ty0) / pinch.s0;
+    view.s = ns; view.tx = m[0] - ix * ns; view.ty = m[1] - iy * ns;
+    draw();
+  }
+  if (pinchLock) e.stopImmediatePropagation();
+}, true);
+const touchEnd = e => {
+  if (e.pointerType !== 'touch') return;
+  touches.delete(e.pointerId);
+  if (touches.size < 2) pinch = null;
+  if (pinchLock) { e.stopImmediatePropagation(); if (!touches.size) { pinchLock = false; hover = null; draw(); } }
+};
+cv.addEventListener('pointerup', touchEnd, true);
+cv.addEventListener('pointercancel', touchEnd, true);
+
+cv.addEventListener('pointerdown', e => {
+  if (!state.src || state.busy) return;
+  try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+  const [sx, sy] = localXY(e); const [ix, iy] = toImg(sx, sy);
+  state.tapTip = e.pointerType === 'touch' ? hitPoint(sx, sy) : -1;
+  if (e.button === 1 || e.button === 2 || state.tool === 'pan' || spaceDown) {
+    drag = { type: 'pan', sx, sy, tx: view.tx, ty: view.ty }; if (state.tool === 'pan') cv.style.cursor = 'grabbing'; return;
+  }
+  if (state.tool === 'point') {
+    if (!state.frames.length) { toast('請先在步驟 2 產生疊加影像'); return; }
+    const hit = hitPoint(sx, sy);
+    if (hit >= 0) { state.target = hit; state.armed = false; drag = { type: 'point', k: hit }; if (state.view === 'single') setView('single'); updateAll(); return; }
+    const k = state.target;
+    if (state.points[k] && !state.armed) {
+      const msg = '全部位置都已標記。要重標請先點步驟 3 的編號';
+      if (e.pointerType === 'touch') drag = { type: 'note', msg }; else toast(msg);   // touch: wait, it may become a pinch
+      return;
+    }
+    state.points[k] = { x: ix, y: iy }; state.armed = false;
+    drag = { type: 'point', k, placed: true };
+    updateAll(); return;
+  }
+  if (state.tool === 'scale') {
+    const s = state.scale;
+    if (s && $('#scaleMove').checked) { drag = { type: 'scaleMove', ix, iy, orig: { ...s } }; cv.style.cursor = 'move'; return; }
+    if (!s && $('#scaleMove').checked) { toast('請先畫好比例尺，再勾選「拖動比例尺位置」'); return; }
+    if (s) {
+      const [a, b] = toScr(s.x1, s.y1), [c, d] = toScr(s.x2, s.y2);
+      if (Math.hypot(a - sx, b - sy) < HIT) { drag = { type: 'scale', end: 1 }; return; }
+      if (Math.hypot(c - sx, d - sy) < HIT) { drag = { type: 'scale', end: 2 }; return; }
+    }
+    drag = { type: 'scale', end: 2, prev: s ? { ...s } : null };
+    state.scale = { x1: ix, y1: iy, x2: ix, y2: iy };
+    updateAll(); return;
+  }
+  if (state.tool === 'quad') {
+    const q = state.quad || (state.quad = []);
+    let hit = -1; q.forEach((c, i) => { const [x, y] = toScr(c.x, c.y); if (Math.hypot(x - sx, y - sy) < HIT) hit = i; });
+    if (hit < 0) { if (q.length >= 4) { toast('四個角都點好了，可拖曳角點微調，或按「清除四角」重點'); return; } q.push({ x: ix, y: iy }); hit = q.length - 1; }
+    drag = { type: 'quad', i: hit }; updateHomography(); updateAll(); return;
+  }
+  if (state.tool === 'roi') { state.roi = { x0: ix, y0: iy, x1: ix, y1: iy }; drag = { type: 'roi' }; draw(); return; }
+  if (state.tool === 'origin') {
+    const o = state.origin;
+    const near = o && (() => { const [ox, oy] = toScr(o.x, o.y); return Math.hypot(ox - sx, oy - sy) < HIT + 2; })();
+    if (!near) state.origin = { x: ix, y: iy };
+    drag = { type: 'origin', sx, sy };
+    updateAll();
+  }
+});
+cv.addEventListener('pointermove', e => {
+  if (!state.src) return;
+  const [sx, sy] = localXY(e); hover = { sx, sy };
+  if (!drag) { draw(); return; }
+  let [ix, iy] = toImg(sx, sy);
+  ix = clamp(ix, 0, state.W); iy = clamp(iy, 0, state.H);
+  if (drag.type === 'pan') { view.tx = drag.tx + sx - drag.sx; view.ty = drag.ty + sy - drag.sy; draw(); }
+  else if (drag.type === 'point') {
+    state.points[drag.k] = { x: ix, y: iy };
+    const f = state.frames[drag.k].f; if (state.track.has(f)) state.track.set(f, { x: ix, y: iy });
+    updateAll();
+  }
+  else if (drag.type === 'scale') {
+    const s = state.scale;
+    if (e.shiftKey) {
+      const ax = drag.end === 2 ? s.x1 : s.x2, ay = drag.end === 2 ? s.y1 : s.y2;
+      if (Math.abs(ix - ax) > Math.abs(iy - ay)) iy = ay; else ix = ax;
+    }
+    if (drag.end === 1) { s.x1 = ix; s.y1 = iy; } else { s.x2 = ix; s.y2 = iy; }
+    updateAll();
+  }
+  else if (drag.type === 'quad') { state.quad[drag.i] = { x: ix, y: iy }; updateHomography(); updateAll(); }
+  else if (drag.type === 'roi') { state.roi.x1 = ix; state.roi.y1 = iy; draw(); }
+  else if (drag.type === 'scaleMove') {
+    const [jx, jy] = toImg(sx, sy), o = drag.orig, dx = jx - drag.ix, dy = jy - drag.iy;
+    state.scale = { x1: o.x1 + dx, y1: o.y1 + dy, x2: o.x2 + dx, y2: o.y2 + dy };
+    updateAll();
+  }
+  else if (drag.type === 'origin') {
+    if (Math.hypot(sx - drag.sx, sy - drag.sy) > 14) {
+      const o = state.origin;
+      const [owx, owy] = toWorld(o.x, o.y), [ewx, ewy] = toWorld(ix, iy);
+      let a = Math.atan2(ewy - owy, ewx - owx);
+      if (e.shiftKey) a = Math.round(a / (15 * DEG)) * 15 * DEG;
+      state.ang = a; $('#angDeg').value = +(a / DEG).toFixed(2);
+      updateAll();
+    }
+  }
+});
+cv.addEventListener('pointerleave', () => { hover = null; draw(); });
+function endDrag() {
+  if (!drag) return;
+  if (drag.type === 'note') { toast(drag.msg); drag = null; return; }
+  if ((drag.type === 'pan' && state.tool === 'pan') || drag.type === 'scaleMove') cv.style.cursor = '';
+  if (drag.type === 'scale') {
+    const s = state.scale;
+    if (s && Math.hypot(s.x2 - s.x1, s.y2 - s.y1) < 3 && 'prev' in drag) state.scale = drag.prev;
+  }
+  if (drag.type === 'quad' && state.quad.length === 4 && homoReady()) toast('校正完成，檢查格線是否貼合平面');
+  if (drag.type === 'roi') {
+    const r = state.roi;
+    if (r && (Math.abs(r.x1 - r.x0) < 8 || Math.abs(r.y1 - r.y0) < 8)) state.roi = null;
+    else { toast('已設定偵測範圍，按「自動偵測點」開始'); setTool('point'); }
+  }
+  if (drag.type === 'point' && drag.placed && ($('#autoAdv').checked || isImg())) {
+    syncImageSlots();
+    const n = nextEmpty(drag.k);
+    if (n >= 0) { state.target = n; if (state.view === 'single') setView('single'); }
+  }
+  drag = null; updateAll();
+}
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', endDrag);
+// a lifted finger leaves no "hover": hide the magnifier, keep a tapped point's info box
+cv.addEventListener('pointerup', e => { if (e.pointerType === 'touch') { hover = null; draw(); } });
+cv.addEventListener('wheel', e => {
+  if (!state.src) return; e.preventDefault();
+  const [sx, sy] = localXY(e); zoomAt(sx, sy, Math.exp(-e.deltaY * 0.0015));
+}, { passive: false });
+
+['dragenter', 'dragover'].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); $('#dropOv').hidden = false; }));
+['dragleave', 'drop'].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); $('#dropOv').hidden = true; }));
+stage.addEventListener('drop', e => { const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) loadAnyFile(f); });
+
+/* ---------- analysis ---------- */
+/* ---------- calibration: image px → world units (y up) ---------- */
+const calMode = () => $('#advOn').checked ? $('#calMode').value : 'scale';
+function tiltCos() { return Math.cos(clamp(+$('#tiltDeg').value || 0, 0, 80) * DEG); }
+function preT(x, y) {
+  if (calMode() !== 'tilt') return [x, y];
+  const c = tiltCos(), cx = state.W / 2, cy = state.H / 2;
+  return $('#tiltDir').value === 'v' ? [x, cy + (y - cy) / c] : [cx + (x - cx) / c, y];
+}
+function preTinv(x, y) {
+  if (calMode() !== 'tilt') return [x, y];
+  const c = tiltCos(), cx = state.W / 2, cy = state.H / 2;
+  return $('#tiltDir').value === 'v' ? [x, cy + (y - cy) * c] : [cx + (x - cx) * c, y];
+}
+function depthFactor() {
+  if (calMode() !== 'depth') return 1;
+  const d1 = +$('#dRuler').value, d2 = +$('#dMotion').value;
+  return d1 > 0 && d2 > 0 ? d2 / d1 : 1;
+}
+function perPx() {
+  if (calMode() === 'homo') return null;
+  const s = state.scale;
+  if (!s || !(state.len > 0)) return null;
+  const [a, b] = preT(s.x1, s.y1), [c, d] = preT(s.x2, s.y2);
+  const dd = Math.hypot(c - a, d - b);
+  if (dd < 1) return null;
+  return state.len / dd * depthFactor();
+}
+function dlt(src, dst) {
+  const A = [], b = [];
+  src.forEach(([x, y], i) => { const [X, Y] = dst[i];
+    A.push([x, y, 1, 0, 0, 0, -X * x, -X * y]); b.push(X);
+    A.push([0, 0, 0, x, y, 1, -Y * x, -Y * y]); b.push(Y); });
+  return solve(A, b);
+}
+const applyH = (h, x, y) => { const d = h[6] * x + h[7] * y + 1; return [(h[0] * x + h[1] * y + h[2]) / d, (h[3] * x + h[4] * y + h[5]) / d]; };
+function updateHomography() {
+  state.H8 = state.Hinv = null;
+  const q = state.quad, w = +$('#qW').value, h = +$('#qH').value;
+  if (!q || q.length !== 4 || !(w > 0) || !(h > 0)) return;
+  const img4 = q.map(p => [p.x, p.y]), pl4 = [[0, 0], [w, 0], [w, h], [0, h]];
+  state.H8 = dlt(img4, pl4); state.Hinv = dlt(pl4, img4);
+}
+const homoReady = () => calMode() === 'homo' && !!state.H8 && !!state.Hinv;
+const calibrated = () => calMode() === 'homo' ? homoReady() : !!perPx();
+function toWorld(x, y) {
+  if (calMode() === 'homo') return homoReady() ? applyH(state.H8, x, y) : [x, -y];
+  const m = perPx() || 1, [a, b] = preT(x, y);
+  return [a * m, -b * m];
+}
+function worldToImg(X, Y) {
+  if (calMode() === 'homo') return homoReady() ? applyH(state.Hinv, X, Y) : [X, -Y];
+  const m = perPx() || 1;
+  return preTinv(X / m, -Y / m);
+}
+function worldDist(p, q) { const [a, b] = toWorld(p.x, p.y), [c, d] = toWorld(q.x, q.y); return Math.hypot(c - a, d - b); }
+/* image-space unit directions of the world x / y axes at point o */
+function axisDirs(o) {
+  const [wx, wy] = toWorld(o.x, o.y), [ex, ey] = toWorld(o.x + 20, o.y);
+  const e = Math.hypot(ex - wx, ey - wy) || 1, ca = Math.cos(state.ang), sa = Math.sin(state.ang);
+  const dir = (dx, dy) => { const [ix, iy] = worldToImg(wx + e * dx, wy + e * dy); const L = Math.hypot(ix - o.x, iy - o.y) || 1; return [(ix - o.x) / L, (iy - o.y) / L]; };
+  return [dir(ca, sa), dir(-sa, ca)];
+}
+function analyze() {
+  const rows = [];
+  const o = effOrigin(); const u = calibrated() ? state.unit : 'px';
+  state.unitLabel = u;
+  if (!state.frames.length || !o) { state.rows = rows; return; }
+  const f0 = state.frames[0].f, ca = Math.cos(state.ang), sa = Math.sin(state.ang);
+  const [owx, owy] = toWorld(o.x, o.y);
+  const push = (k, f, p) => {
+    const [wx, wy] = toWorld(p.x, p.y), dx = wx - owx, dy = wy - owy;
+    rows.push({ k, f, t: (f - f0) / state.capFps, x: dx * ca + dy * sa, y: -dx * sa + dy * ca });
+  };
+  if ($('#dataSrc').value === 'dense' && state.track.size > 2) {
+    [...state.track.keys()].sort((a, b) => a - b).forEach((f, i) => push(i, f, state.track.get(f)));
+  } else state.points.forEach((p, k) => { if (p) push(k, state.frames[k].f, p); });
+  let s = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i], a = rows[i - 1], b = rows[i + 1];
+    r.dd = a ? Math.hypot(r.x - a.x, r.y - a.y) : null;
+    if (a) s += r.dd;
+    r.s = s;
+    if (a && b) {
+      r.vx = (b.x - a.x) / (b.t - a.t); r.vy = (b.y - a.y) / (b.t - a.t); r.v = Math.hypot(r.vx, r.vy);
+      const v1x = (r.x - a.x) / (r.t - a.t), v2x = (b.x - r.x) / (b.t - r.t);
+      const v1y = (r.y - a.y) / (r.t - a.t), v2y = (b.y - r.y) / (b.t - r.t);
+      r.ax = 2 * (v2x - v1x) / (b.t - a.t); r.ay = 2 * (v2y - v1y) / (b.t - a.t);
+    }
+  }
+  state.rows = rows;
+}
+const COLS = () => { const u = state.unitLabel || 'px'; return [
+  ['#', r => r.k + 1], [isImg() ? '第幾個點' : '影格', r => isImg() ? r.f + 1 : r.f], ['t (s)', r => r.t, 4], [`x (${u})`, r => r.x], [`y (${u})`, r => r.y], [`Δd (${u})`, r => r.dd],
+  [`vx (${u}/s)`, r => r.vx], [`vy (${u}/s)`, r => r.vy], [`|v| (${u}/s)`, r => r.v], [`ax (${u}/s²)`, r => r.ax], [`ay (${u}/s²)`, r => r.ay], [`s (${u})`, r => r.s]]; };
+function renderTable() {
+  const box = $('#tableBox'); const rows = state.rows;
+  const dn = $('#dataSrc').value === 'dense' && state.track.size > 2;
+  $('#rowCount').textContent = rows.length ? `${rows.length} 筆 · ${isImg() ? (dn ? '全部的點' : '標記的點') : (dn ? '逐格' : '取樣點')}` : '';
+  if (!rows.length) { box.innerHTML = '<div class="empty">標記物體位置後，數據會列在這裡。</div>'; return; }
+  const cols = COLS();
+  let h = '<table><thead><tr>' + cols.map(c => `<th>${c[0]}</th>`).join('') + '</tr></thead><tbody>';
+  rows.forEach(r => { h += '<tr>' + cols.map((c, i) => { const v = c[1](r); return `<td>${i < 2 ? v : c[2] ? v.toFixed(c[2]) : fmt(v)}</td>`; }).join('') + '</tr>'; });
+  box.innerHTML = h + '</tbody></table>';
+}
+function tableText(sep) {
+  const cols = COLS();
+  const num = v => (v == null || !isFinite(v)) ? '' : String(+v.toPrecision(7));
+  return [cols.map(c => c[0]).join(sep), ...state.rows.map(r => cols.map(c => num(c[1](r))).join(sep))].join('\n');
+}
+
+function solve(A, b) {
+  const m = b.length; const M = A.map((row, i) => [...row, b[i]]);
+  for (let c = 0; c < m; c++) {
+    let piv = c; for (let r = c + 1; r < m; r++) if (Math.abs(M[r][c]) > Math.abs(M[piv][c])) piv = r;
+    [M[c], M[piv]] = [M[piv], M[c]];
+    if (Math.abs(M[c][c]) < 1e-12) return null;
+    for (let r = 0; r < m; r++) { if (r === c) continue; const f = M[r][c] / M[c][c]; for (let k = c; k <= m; k++) M[r][k] -= f * M[c][k]; }
+  }
+  return M.map((row, i) => row[m] / row[i]);
+}
+function polyfit(xs, ys, deg) {
+  const m = deg + 1, A = Array.from({ length: m }, () => new Array(m).fill(0)), b = new Array(m).fill(0);
+  xs.forEach((x, i) => { for (let r = 0; r < m; r++) { for (let c = 0; c < m; c++) A[r][c] += x ** (r + c); b[r] += ys[i] * x ** r; } });
+  const co = solve(A, b); if (!co) return null;
+  const mean = ys.reduce((a, c) => a + c, 0) / ys.length;
+  let ssr = 0, sst = 0;
+  xs.forEach((x, i) => { const yh = co.reduce((s, c, j) => s + c * x ** j, 0); ssr += (ys[i] - yh) ** 2; sst += (ys[i] - mean) ** 2; });
+  return { co, r2: sst > 0 ? 1 - ssr / sst : 1 };
+}
+function circleFit(xs, ys) {
+  const A = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b = [0, 0, 0];
+  xs.forEach((x, i) => { const y = ys[i], row = [x, y, 1], z = -(x * x + y * y);
+    for (let r = 0; r < 3; r++) { for (let c = 0; c < 3; c++) A[r][c] += row[r] * row[c]; b[r] += row[r] * z; } });
+  const s = solve(A, b); if (!s) return null;
+  const cx = -s[0] / 2, cy = -s[1] / 2, R2 = cx * cx + cy * cy - s[2];
+  if (!(R2 > 0)) return null;
+  const R = Math.sqrt(R2);
+  const rms = Math.sqrt(xs.reduce((a, x, i) => a + (Math.hypot(x - cx, ys[i] - cy) - R) ** 2, 0) / xs.length);
+  return { cx, cy, R, rms };
+}
+
+const CHARTS = [
+  { id: 'traj', label: '軌跡 y – x', fit: '0' },
+  { id: 'x', label: 'x – t', fit: '0' },
+  { id: 'y', label: 'y – t', fit: '0' },
+  { id: 'vx', label: 'vx – t', fit: '0' },
+  { id: 'vy', label: 'vy – t', fit: '0' },
+  { id: 'v', label: '速率 |v| – t', fit: '0' },
+  { id: 's', label: '路徑長 s – t', fit: '0' },
+  { id: 'ax', label: 'ax – t', fit: '0' },
+  { id: 'ay', label: 'ay – t', fit: '0' }
+];
+function niceTicks(min, max, n) {
+  if (!(max > min)) { const d = Math.abs(min) * 0.1 || 1; min -= d; max += d; }
+  const raw = (max - min) / n, mag = 10 ** Math.floor(Math.log10(raw)), r = raw / mag;
+  const step = (r < 1.5 ? 1 : r < 3 ? 2 : r < 7 ? 5 : 10) * mag;
+  const lo = Math.floor(min / step - 1e-9) * step, hi = Math.ceil(max / step - 1e-9) * step;
+  const t = []; for (let v = lo; v <= hi + step * 1e-6; v += step) t.push(+v.toFixed(10));
+  return { lo, hi, t, step };
+}
+function niceTicksInner(lo, hi, n) {
+  const nt = niceTicks(lo, hi, n);
+  return { t: nt.t.filter(t => t >= lo - 1e-9 && t <= hi + 1e-9), step: nt.step };
+}
+const tickLabel = (v, step) => v.toFixed(Math.min(6, Math.max(0, -Math.floor(Math.log10(step) + 1e-9))));
+const VNAME = { v: '|v|' };
+
+/* compute data + fit for one chart; no drawing */
+function chartModel(v, fitv) {
+  const u = state.unitLabel || 'px', traj = v === 'traj';
+  const pts = state.rows.filter(rw => traj ? true : rw[v] != null && isFinite(rw[v])).map(rw => traj ? [rw.x, rw.y, rw.t, rw] : [rw.t, rw[v], rw.t, rw]);
+  const M = { v, fitv, u, traj, pts, fit: null, circ: null, text: '', short: '' };
+  if (pts.length < 2) { M.short = '資料不足'; return M; }
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  if (fitv === 'c') { if (traj && pts.length >= 3) M.circ = circleFit(xs, ys); }
+  else if (+fitv > 0 && pts.length > +fitv + 1) M.fit = polyfit(xs, ys, +fitv);
+  const em = s => `<span class="em">${s}</span>`;
+  if (fitv === 'c') {
+    if (!traj) M.text = M.short = '圓擬合只適用於軌跡圖';
+    else if (!M.circ) M.text = M.short = '至少 3 個不共線的點才能擬合圓';
+    else {
+      const c = M.circ;
+      const P = pts.map(p => [Math.atan2(p[1] - c.cy, p[0] - c.cx), p[2]]);
+      const th = []; let off = 0;
+      P.forEach((p, i) => { if (i) { const d = p[0] - P[i - 1][0]; if (d > Math.PI) off -= 2 * Math.PI; else if (d < -Math.PI) off += 2 * Math.PI; } th.push(p[0] + off); });
+      const lf = polyfit(P.map(p => p[1]), th, 1);
+      const w = lf ? lf.co[1] : NaN, aw = Math.abs(w);
+      M.text = `圓心 (${sig(c.cx)}, ${sig(c.cy)}) ${u}　半徑 R = ${em(sig(c.R) + ' ' + u)}　偏差 RMS = ${sig(c.rms)} ${u}<br>`
+        + `角速度 ω = ${em(sig(w) + ' rad/s')}（${w > 0 ? '逆時針' : '順時針'}）　週期 T = ${sig(2 * Math.PI / aw)} s　速率 ωR = ${sig(aw * c.R)} ${u}/s　向心加速度 ω²R = ${em(sig(w * w * c.R) + ' ' + u + '/s²')}`;
+      M.short = `R = ${em(sig(c.R) + ' ' + u)}　ω = ${em(sig(w) + ' rad/s')}`;
+    }
+    return M;
+  }
+  if (!M.fit) { M.text = +fitv > 0 ? `擬合需要至少 ${+fitv + 2} 個點` : ''; M.short = `${pts.length} 點`; return M; }
+  const iv = traj ? 'x' : 't', dv = traj ? 'y' : (VNAME[v] || v);
+  const [c0, c1, c2] = M.fit.co;
+  const eq = +fitv === 1 ? `${dv} = ${sig(c1)}·${iv} ${c0 < 0 ? '−' : '+'} ${sig(Math.abs(c0))}`
+    : `${dv} = ${sig(c2)}·${iv}² ${c1 < 0 ? '−' : '+'} ${sig(Math.abs(c1))}·${iv} ${c0 < 0 ? '−' : '+'} ${sig(Math.abs(c0))}`;
+  let extra = '', short = `R² = ${M.fit.r2.toFixed(4)}`;
+  if (!traj && (v === 'x' || v === 'y' || v === 's')) {
+    if (+fitv === 1) { extra = `　速度 ≈ ${em(sig(c1) + ' ' + u + '/s')}`; short = `v ≈ ${em(sig(c1) + ' ' + u + '/s')}`; }
+    else { extra = `　加速度 = 2×二次項 ≈ ${em(sig(2 * c2) + ' ' + u + '/s²')}　初速 ≈ ${sig(c1)} ${u}/s`; short = `a ≈ ${em(sig(2 * c2) + ' ' + u + '/s²')}`; }
+  } else if (!traj && +fitv === 1 && (v === 'vx' || v === 'vy' || v === 'v')) { extra = `　加速度 ≈ ${em(sig(c1) + ' ' + u + '/s²')}`; short = `a ≈ ${em(sig(c1) + ' ' + u + '/s²')}`; }
+  else if (traj) short = eq;
+  M.text = `${eq}　R² = ${M.fit.r2.toFixed(5)}${extra}`;
+  M.short = short + `　R² = ${M.fit.r2.toFixed(4)}`;
+  if (short.startsWith('R²')) M.short = short;
+  return M;
+}
+
+function paintChart(c, W, H, k, M, opts) {
+  opts = opts || { vals: false, line: false };
+  const cs = getComputedStyle(document.documentElement);
+  const bgc = cs.getPropertyValue('--panel').trim(), muted = cs.getPropertyValue('--muted').trim(), line = cs.getPropertyValue('--line').trim(), acc = cs.getPropertyValue('--accent').trim();
+  if (k > 1) { c.fillStyle = bgc; c.fillRect(0, 0, W, H); }
+  const { v, u, traj, pts, fit, circ } = M;
+  if (pts.length < 2) {
+    c.fillStyle = muted; c.font = `${13 * k}px "IBM Plex Sans","Noto Sans TC",sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(/^[va]/.test(v) ? '速度、加速度需要至少 3–4 個連續標記點' : '標記至少 2 個點後顯示圖表', W / 2, H / 2);
+    return;
+  }
+  const units = { x: u, y: u, s: u, vx: u + '/s', vy: u + '/s', v: u + '/s', ax: u + '/s²', ay: u + '/s²' };
+  const xLab = traj ? `x (${u})` : 't (s)', yLab = traj ? `y (${u})` : `${VNAME[v] || v} (${units[v]})`;
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  if (circ) { x0 = Math.min(x0, circ.cx - circ.R); x1 = Math.max(x1, circ.cx + circ.R); y0 = Math.min(y0, circ.cy - circ.R); y1 = Math.max(y1, circ.cy + circ.R); }
+  const L0 = 58 * k, R = 14 * k, T = 12 * k, B = 40 * k;
+  if (traj) {
+    const pw = W - L0 - R, ph = H - T - B;
+    const ux = (x1 - x0 || 1) / pw, uy = (y1 - y0 || 1) / ph, uu = Math.max(ux, uy) * 1.08;
+    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    x0 = mx - uu * pw / 2; x1 = mx + uu * pw / 2; y0 = my - uu * ph / 2; y1 = my + uu * ph / 2;
+  }
+  const X = traj ? { lo: x0, hi: x1, ...niceTicksInner(x0, x1, 6) } : niceTicks(x0, x1, 6);
+  const Y = traj ? { lo: y0, hi: y1, ...niceTicksInner(y0, y1, 5) } : niceTicks(y0, y1, 5);
+  c.font = `${11 * k}px "IBM Plex Mono",monospace`;
+  const yw = Math.max(...Y.t.map(t => c.measureText(tickLabel(t, Y.step)).width));
+  const L = traj ? L0 : yw + 30 * k;
+  const px = x => L + (x - X.lo) / (X.hi - X.lo) * (W - L - R);
+  const py = y => H - B - (y - Y.lo) / (Y.hi - Y.lo) * (H - T - B);
+  c.strokeStyle = line; c.lineWidth = k; c.fillStyle = muted;
+  c.textAlign = 'right'; c.textBaseline = 'middle';
+  Y.t.forEach(t => { const y = Math.round(py(t)) + .5; c.beginPath(); c.moveTo(L, y); c.lineTo(W - R, y); c.stroke(); c.fillText(tickLabel(t, Y.step), L - 6 * k, y); });
+  c.textAlign = 'center'; c.textBaseline = 'top';
+  X.t.forEach(t => { const x = Math.round(px(t)) + .5; c.beginPath(); c.moveTo(x, T); c.lineTo(x, H - B); c.stroke(); c.fillText(tickLabel(t, X.step), x, H - B + 5 * k); });
+  if (Y.lo < 0 && Y.hi > 0) { c.strokeStyle = muted; const y = Math.round(py(0)) + .5; c.beginPath(); c.moveTo(L, y); c.lineTo(W - R, y); c.stroke(); }
+  if (traj && X.lo < 0 && X.hi > 0) { c.strokeStyle = muted; const x = Math.round(px(0)) + .5; c.beginPath(); c.moveTo(x, T); c.lineTo(x, H - B); c.stroke(); }
+  c.fillStyle = muted; c.font = `${12 * k}px "IBM Plex Sans","Noto Sans TC",sans-serif`;
+  c.textBaseline = 'bottom'; c.fillText(xLab, (L + W - R) / 2, H - 2 * k);
+  c.save(); c.translate(12 * k, (T + H - B) / 2); c.rotate(-Math.PI / 2); c.textBaseline = 'middle'; c.fillText(yLab, 0, 0); c.restore();
+
+  c.save(); c.beginPath(); c.rect(L, T, W - L - R, H - T - B); c.clip();
+  c.strokeStyle = PT; c.lineWidth = 1.6 * k; c.setLineDash([5 * k, 4 * k]);
+  if (fit) {
+    c.beginPath();
+    for (let i = 0; i <= 160; i++) { const x = X.lo + (X.hi - X.lo) * i / 160; const y = fit.co.reduce((s, cc, j) => s + cc * x ** j, 0); i ? c.lineTo(px(x), py(y)) : c.moveTo(px(x), py(y)); }
+    c.stroke();
+  }
+  if (circ) {
+    c.beginPath();
+    for (let i = 0; i <= 180; i++) { const a = i / 180 * Math.PI * 2; const x = circ.cx + circ.R * Math.cos(a), y = circ.cy + circ.R * Math.sin(a); i ? c.lineTo(px(x), py(y)) : c.moveTo(px(x), py(y)); }
+    c.stroke(); c.setLineDash([]);
+    c.fillStyle = PT; c.beginPath(); c.arc(px(circ.cx), py(circ.cy), 3 * k, 0, Math.PI * 2); c.fill();
+  }
+  c.restore();
+  const dot = (pts.length > 80 ? 2.4 : 3.8) * k;
+  if (opts.line) { c.strokeStyle = acc; c.lineWidth = 1.6 * k; c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(px(x), py(y)) : c.moveTo(px(x), py(y))); c.stroke(); }
+  pts.forEach(([x, y]) => { c.fillStyle = acc; c.beginPath(); c.arc(px(x), py(y), dot, 0, Math.PI * 2); c.fill(); });
+  if (opts.vals) {
+    const ink = cs.getPropertyValue('--ink').trim(), every = Math.max(1, Math.ceil(pts.length / 30));
+    const nf = v => { const a = Math.abs(v); return a >= 100 ? v.toFixed(0) : a >= 10 ? v.toFixed(1) : v.toFixed(2); };
+    c.save(); c.font = `${10.5 * k}px "IBM Plex Mono",monospace`; c.textAlign = 'center'; c.textBaseline = 'bottom';
+    const placed = pts.map(([x, y]) => [px(x) - dot, py(y) - dot, px(x) + dot, py(y) + dot]);
+    const hit = r => placed.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1]);
+    pts.forEach(([x, y], i) => {
+      if (i % every) return;
+      const lab = traj ? `(${nf(x)}, ${nf(y)})` : nf(y), cx = px(x), cy = py(y);
+      const tw = c.measureText(lab).width, th = 12 * k, g = dot + 3 * k;
+      const cands = [[cx, cy - g], [cx, cy + g + th], [cx + g + tw / 2, cy + th / 2], [cx - g - tw / 2, cy + th / 2]];
+      for (const [tx, ty] of cands) {
+        const r = [tx - tw / 2 - 1, ty - th, tx + tw / 2 + 1, ty];
+        if (r[0] < 0 || r[2] > W || r[1] < 0 || r[3] > H || hit(r)) continue;
+        placed.push(r);
+        c.lineWidth = 3 * k; c.strokeStyle = bgc; c.strokeText(lab, tx, ty);
+        c.fillStyle = ink; c.fillText(lab, tx, ty);
+        break;
+      }
+    });
+    c.restore();
+  }
+  return { scr: pts.map(([x, y]) => [px(x), py(y)]), acc };
+}
+
+/* chart cards */
+const chartFits = Object.fromEntries(CHARTS.map(ch => [ch.id, ch.fit]));
+const chartOpts = Object.fromEntries(CHARTS.map(ch => [ch.id, { vals: false, line: false }]));
+function fitOptions(id) {
+  const o = [['0', '不擬合'], ['1', '直線擬合'], ['2', '二次擬合']];
+  if (id === 'traj') o.push(['c', '圓擬合']);
+  return o.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+}
+function buildChartCards() {
+  $('#chartList').innerHTML = CHARTS.map((ch, i) => `
+    <details class="chartcard" data-id="${ch.id}"${i === 0 ? ' open' : ''}>
+      <summary><h3>${ch.label}</h3><span class="peek" data-peek></span></summary>
+      <div class="cbody">
+        <div class="chartopts">
+          <label class="check"><input type="checkbox" data-vals>顯示各點數值</label>
+          <label class="check"><input type="checkbox" data-line>連線</label>
+          <select data-fit aria-label="${ch.label} 擬合方式">${fitOptions(ch.id)}</select>
+          <button class="btn" type="button" data-export>匯出圖表 PNG</button>
+          <span class="note">滑鼠移到點上可看數值</span>
+        </div>
+        <div class="chartbox"><canvas></canvas></div>
+        <div class="fitout" data-fitout></div>
+      </div>
+    </details>`).join('');
+  $$('.chartcard').forEach(card => {
+    const id = card.dataset.id, sel = card.querySelector('[data-fit]');
+    sel.value = chartFits[id];
+    sel.addEventListener('change', () => { chartFits[id] = sel.value; renderCharts(); });
+    card.querySelector('[data-vals]').addEventListener('change', e => { chartOpts[id].vals = e.target.checked; renderCard(card); });
+    card.querySelector('[data-line]').addEventListener('change', e => { chartOpts[id].line = e.target.checked; renderCard(card); });
+    const cvs = card.querySelector('canvas');
+    const onMove = e => {
+      const g = card._geo; if (!g) return;
+      const r = cvs.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      let best = -1, bd = 14;
+      g.scr.forEach(([x, y], i) => { const d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = i; } });
+      if (best !== card._hover) { card._hover = best; renderCard(card, card._M); }
+    };
+    cvs.addEventListener('pointermove', onMove);
+    cvs.addEventListener('pointerdown', onMove);
+    cvs.addEventListener('pointerleave', () => { if (card._hover >= 0) { card._hover = -1; renderCard(card, card._M); } });
+    card.addEventListener('toggle', () => { if (card.open) renderCard(card); });
+    card.querySelector('[data-export]').addEventListener('click', () => exportChart(id));
+    new ResizeObserver(() => { if (card.open) renderCard(card); }).observe(card.querySelector('.chartbox'));
+  });
+}
+function renderCard(card, M) {
+  const id = card.dataset.id;
+  M = M || chartModel(id, chartFits[id]);
+  card.querySelector('[data-peek]').innerHTML = M.short;
+  card.querySelector('[data-fitout]').innerHTML = M.text;
+  if (!card.open) return;
+  const cv2 = card.querySelector('canvas'), r = cv2.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  if (r.width < 2) return;
+  cv2.width = Math.round(r.width * d); cv2.height = Math.round(r.height * d);
+  const c = cv2.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0); c.clearRect(0, 0, r.width, r.height);
+  card._M = M;
+  const g = paintChart(c, r.width, r.height, 1, M, chartOpts[id]);
+  card._geo = g || null;
+  const hi = card._hover;
+  if (g && hi >= 0 && hi < g.scr.length) {
+    const [x, y] = g.scr[hi], rw = M.pts[hi][3], u = M.u;
+    c.save(); c.strokeStyle = g.acc; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 7, 0, Math.PI * 2); c.stroke(); c.restore();
+    const units = { x: u, y: u, s: u, vx: u + '/s', vy: u + '/s', v: u + '/s', ax: u + '/s²', ay: u + '/s²' };
+    const lines = [isImg() ? `第 ${rw.k + 1} 點` : `第 ${rw.k + 1} 點（影格 ${rw.f}）`, `t = ${rw.t.toFixed(3)} s`];
+    if (M.traj) lines.push(`x = ${fmt(rw.x)} ${u}`, `y = ${fmt(rw.y)} ${u}`);
+    else lines.push(`${VNAME[id] || id} = ${fmt(rw[id])} ${units[id]}`);
+    const cs = getComputedStyle(document.documentElement);
+    drawTip(c, x, y, lines, r.width, r.height, cs.getPropertyValue('--ink').trim(), cs.getPropertyValue('--bg').trim(), g.acc);
+  }
+}
+function renderCharts() { $$('.chartcard').forEach(card => { card._hover = -1; const sel = card.querySelector('[data-fit]'); if (sel.value !== chartFits[card.dataset.id]) sel.value = chartFits[card.dataset.id]; renderCard(card); }); }
+
+/* ---------- UI sync ---------- */
+function updateCoverage() {
+  const list = frameList();
+  if (!state.src || !list.length) { $('#covFrames').textContent = '—'; $('#covDt').textContent = '—'; $('#covT').textContent = '—'; return; }
+  const short = list.length < state.K ? `（只到 ${list.length} 張）` : '';
+  $('#covFrames').textContent = `${list[0]} → ${list[list.length - 1]}${short}`;
+  $('#covDt').textContent = (state.N / state.capFps).toFixed(4) + ' s';
+  $('#covT').textContent = ((list[list.length - 1] - list[0]) / state.capFps).toFixed(3) + ' s';
+}
+function renderChips() {
+  const box = $('#chips');
+  if (!state.points.length) { box.innerHTML = `<span class="note" style="grid-column:1/-1">${isImg() ? '點擊照片上的點開始標記' : '產生疊加影像後出現'}</span>`; return; }
+  box.innerHTML = state.points.map((p, k) => `<button type="button" class="chip${p ? ' done' : ''}${k === state.target ? ' on' : ''}" data-k="${k}" title="${isImg() ? 't = ' + (state.frames[k].f / state.capFps).toFixed(3) + ' s' : '影格 ' + state.frames[k].f}">${k + 1}</button>`).join('');
+}
+function updateSteps() {
+  const built = state.frames.length > 0 && !state.stale;
+  const marked = state.points.filter(Boolean).length;
+  const cur = !state.src ? 0 : !built ? (state.start === 0 && state.src.kind === 'video' && !state.buildSig ? 1 : 2) : marked < 3 ? 3 : !calibrated() ? 4 : -1;
+  ['#st0', '#st1', '#st2', '#st3', '#st4'].forEach((id, i) => {
+    const el = $(id); el.classList.toggle('current', i === cur);
+    el.classList.toggle('done', (i === 1 && state.start > 0) || (i === 2 && built) || (i === 3 && marked >= 3) || (i === 4 && calibrated()));
+  });
+  $('#buildBtn').classList.toggle('attn', state.stale && !!state.src);
+  $('#buildBtn').textContent = state.frames.length && state.stale ? '重新產生疊加影像' : '產生疊加影像';
+}
+function updateAll() {
+  if (isImg()) syncImageSlots();
+  $('#startOut').textContent = `影格 ${state.start}（${(state.start / state.capFps).toFixed(3)} s）`;
+  const s = state.scale;
+  $('#pxLen').textContent = s ? Math.hypot(s.x2 - s.x1, s.y2 - s.y1).toFixed(1) + ' px' : '—';
+  const m = perPx(), cm = calMode();
+  if (cm === 'homo') $('#perPx').textContent = homoReady() ? `四點校正 ${$('#qW').value} × ${$('#qH').value} ${state.unit}` : `四點校正：已點 ${(state.quad || []).length} / 4 角`;
+  else $('#perPx').textContent = m ? `1 px = ${sig(m)} ${state.unit}` + (cm === 'depth' ? `（×${sig(depthFactor())}）` : cm === 'tilt' ? '（已含夾角修正）' : '') : '未設定（以 px 計）';
+  $('#depthOut').textContent = `實際距離 = 畫面量到的 × ${sig(depthFactor())}`;
+  $('#originOut').textContent = (state.origin ? `(${state.origin.x.toFixed(0)}, ${state.origin.y.toFixed(0)}) px` : '第 1 個標記點') + (state.ang ? `，x 軸 ${(state.ang / DEG).toFixed(1)}°` : '');
+  $('#thrWrap').hidden = state.mode !== 'fg';
+  updateCoverage(); renderChips(); updateSteps(); updateHint();
+  analyze(); renderTable(); renderCharts(); draw();
+}
+function markStale() { state.stale = true; updateAll(); }
+
+/* ---------- export ---------- */
+function canvasBlob(c) { return new Promise(res => c.toBlob(res, 'image/png')); }
+async function saveBlob(name, blob) {
+  const dl = await dlPromise;
+  if (dl) {
+    try { await dl.save({ filename: name, data: blob }); toast('已存檔：' + name); return; }
+    catch (e) {
+      const code = e && e.code;
+      if (code === 'declined') return;
+      if (code === 'rate_limited') { toast('已有一個存檔視窗開著'); return; }
+    }
+  }
+  if (!window.claude) {
+    // ordinary website (e.g. GitHub Pages): normal browser download
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    toast('已下載：' + name); return;
+  }
+  if (blob.type.startsWith('image/')) {
+    const url = URL.createObjectURL(blob);
+    const im = $('#mImg'); if (im.dataset.url) URL.revokeObjectURL(im.dataset.url);
+    im.src = url; im.dataset.url = url; $('#mTitle').textContent = name; $('#modal').hidden = false;
+  } else {
+    const text = await blob.text();
+    copyText(text.replace(/^﻿/, ''), '無法直接下載，已改為複製到剪貼簿');
+  }
+}
+function copyText(text, okMsg) {
+  const fallback = () => { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast(okMsg); } catch (_) { toast('無法自動複製，請手動選取表格'); } ta.remove(); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => toast(okMsg), fallback); else fallback();
+}
+/* ASCII-only file names download reliably in every browser */
+function fileBase() {
+  if (!state.src) return 'motion';
+  if (state.src.kind === 'demo' || state.src.demo) return 'demo-' + (state.src.type || (isImg() ? 'tape' : 'video'));
+  const b = state.src.name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '');
+  return b || 'motion';
+}
+async function exportComposite() {
+  if (!state.comp || state.stale) { toast('請先產生疊加影像'); return; }
+  const c = document.createElement('canvas'); c.width = state.W; c.height = state.H;
+  const x = c.getContext('2d'); x.putImageData(state.comp, 0, 0);
+  if ($('#expMarks').checked) drawOverlays(x, (a, b) => [a, b], state.W, state.H, Math.max(1, state.W / 900), { highlight: false, single: false });
+  const base = fileBase();
+  saveBlob(isImg() ? `${base}_marked.png` : `${base}_overlay_start${state.start}_every${state.N}_x${state.frames.length}.png`, await canvasBlob(c));
+}
+async function exportChart(id) {
+  if (!state.rows.length) { toast('目前沒有數據'); return; }
+  const M = chartModel(id, chartFits[id]);
+  const k = 2, W = 1200, H = 680;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  paintChart(x, W, H, k, M, chartOpts[id]);
+  saveBlob(`${fileBase()}_chart_${id === 'traj' ? 'trajectory' : id + '-t'}.png`, await canvasBlob(c));
+}
+
+/* ---------- controls ---------- */
+$$('[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+$$('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+$('#zoomFit').addEventListener('click', fitView);
+$('#zoomIn').addEventListener('click', () => zoomAt(cv.width / dpr / 2, cv.height / dpr / 2, 1.4));
+$('#zoomOut').addEventListener('click', () => zoomAt(cv.width / dpr / 2, cv.height / dpr / 2, 1 / 1.4));
+function syncAdv() {
+  const on = $('#advOn').checked, m = $('#calMode').value;
+  $('#advBox').hidden = !on;
+  $$('[data-cal]').forEach(el => el.hidden = el.dataset.cal !== m);
+  $('#quadSeg').hidden = !(on && m === 'homo');
+  if (!(on && m === 'homo') && state.tool === 'quad') setTool('pan');
+  updateHomography(); updateAll();
+}
+$('#advOn').addEventListener('change', syncAdv);
+$('#calMode').addEventListener('change', syncAdv);
+['#qW', '#qH'].forEach(id => $(id).addEventListener('input', () => { updateHomography(); updateAll(); }));
+['#dRuler', '#dMotion', '#tiltDeg'].forEach(id => $(id).addEventListener('input', updateAll));
+$('#tiltDir').addEventListener('change', updateAll);
+$('#quadTool').addEventListener('click', () => { $('#hideGrid').checked = false; setTool('quad'); });
+$('#hideGrid').addEventListener('change', e => { if (e.target.checked && state.tool === 'quad') setTool('pan'); draw(); });
+$('#trimBtn').addEventListener('click', trimToMarked);
+$('#quadClear').addEventListener('click', () => { state.quad = []; updateHomography(); setTool('quad'); updateAll(); });
+$('#scaleTool').addEventListener('click', () => { $('#scaleMove').checked = false; setTool('scale'); });
+$('#scaleMove').addEventListener('change', e => { if (e.target.checked) { if (!state.scale) { e.target.checked = false; toast('請先畫好比例尺'); return; } setTool('scale'); } updateHint(); });
+$('#originTool').addEventListener('click', () => setTool('origin'));
+$('#angDeg').addEventListener('input', e => { const v = +e.target.value; if (isFinite(v)) { state.ang = v * DEG; updateAll(); } });
+$('#axisReset').addEventListener('click', () => { state.origin = null; state.ang = 0; $('#angDeg').value = 0; updateAll(); });
+$$('[data-step]').forEach(b => b.addEventListener('click', () => gotoFrame(state.cur + +b.dataset.step)));
+$('#scrub').addEventListener('input', e => gotoFrame(+e.target.value));
+const setStart = () => { if (!state.src) return; state.start = state.cur; markStale(); toast(`起點設為影格 ${state.start}`); };
+$('#setStart').addEventListener('click', setStart);
+$('#setStart2').addEventListener('click', setStart);
+$('#stepN').addEventListener('change', e => { state.N = clamp(Math.round(+e.target.value) || 1, 1, 500); e.target.value = state.N; markStale(); });
+$('#countK').addEventListener('change', e => { state.K = clamp(Math.round(+e.target.value) || 2, 2, 60); e.target.value = state.K; markStale(); });
+let compT;
+function recomposite() { if (!state.frames.length) { updateAll(); return; } clearTimeout(compT); compT = setTimeout(() => { composite(); if (state.view === 'composite') imgCtx.putImageData(state.comp, 0, 0); updateAll(); }, 60); }
+$('#mode').addEventListener('change', e => { state.mode = e.target.value; recomposite(); });
+$('#thr').addEventListener('input', e => { state.thr = +e.target.value; $('#thrOut').textContent = state.thr; recomposite(); });
+$('#buildBtn').addEventListener('click', build);
+$('#trackBtn').addEventListener('click', autoTrack);
+$('#exportImg').addEventListener('click', exportComposite);
+$('#mClose').addEventListener('click', () => $('#modal').hidden = true);
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') $('#modal').hidden = true; });
+$('#fps').addEventListener('change', e => {
+  const v = +e.target.value; if (!(v > 0) || !state.src) return;
+  if (state.capFps === state.fps) { state.capFps = v; $('#capFps').value = v; }
+  state.fps = v; state.frameCount = Math.max(1, Math.floor(state.src.duration * v + 1e-6));
+  state.cur = clamp(state.cur, 0, state.frameCount - 1); state.start = clamp(state.start, 0, state.frameCount - 1);
+  syncScrub(); markStale();
+});
+$('#capFps').addEventListener('change', e => { const v = +e.target.value; if (v > 0) { state.capFps = v; syncScrub(); updateAll(); } });
+$('#detectBtn').addEventListener('click', async () => {
+  if (!state.src || state.src.kind !== 'video') { toast('示範影片固定為 60 fps'); return; }
+  busyOn('偵測影格率…'); const f = await detectFps(state.src.video); busyOff();
+  if (!f) return toast('這個瀏覽器無法偵測，請手動輸入');
+  $('#fps').value = f; $('#fps').dispatchEvent(new Event('change')); toast(`偵測到約 ${f} fps`);
+});
+$('#chips').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  state.target = +b.dataset.k; state.armed = true;
+  if (state.tool !== 'point') setTool('point');
+  if (state.view === 'single') setView('single');
+  updateAll();
+});
+$('#undoBtn').addEventListener('click', () => {
+  let last = -1; state.points.forEach((p, k) => { if (p) last = k; });
+  if (state.points[state.target] && state.target !== last) last = state.target;
+  if (last < 0) return;
+  if (isImg()) { deletePoint(last); return; }
+  state.points[last] = null; state.target = last; state.armed = false;
+  if (state.view === 'single') setView('single'); updateAll();
+});
+let clearArm = 0;
+$('#clearBtn').addEventListener('click', e => {
+  if (!state.points.some(Boolean)) return;
+  if (Date.now() - clearArm > 2500) { clearArm = Date.now(); e.target.textContent = '再按一次確認清除'; setTimeout(() => e.target.textContent = '清除全部', 2500); return; }
+  state.points = isImg() ? [] : state.points.map(() => null); state.target = 0; clearArm = 0; state.dots = null; resetTrack(); e.target.textContent = '清除全部'; updateAll();
+});
+$('#realLen').addEventListener('input', e => { state.len = +e.target.value; updateAll(); });
+$('#unit').addEventListener('change', e => { state.unit = e.target.value; updateAll(); });
+$('#dataSrc').addEventListener('change', updateAll);
+$('#expandAll').addEventListener('click', () => $$('.chartcard,.tablecard').forEach(d => d.open = true));
+$('#collapseAll').addEventListener('click', () => $$('.chartcard,.tablecard').forEach(d => d.open = false));
+['#lblT', '#lblD', '#lblS', '#lblR'].forEach(id => $(id).addEventListener('change', draw));
+$('#copyBtn').addEventListener('click', () => { if (!state.rows.length) return toast('目前沒有數據'); copyText(tableText('\t'), '已複製，可直接貼到 Excel 或試算表'); });
+$('#csvBtn').addEventListener('click', () => {
+  if (!state.rows.length) return toast('目前沒有數據');
+  const base = fileBase();
+  saveBlob(`${base}_data.csv`, new Blob(['﻿' + tableText(',')], { type: 'text/csv' }));
+});
+$('#file').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadAnyFile(f); e.target.value = ''; });
+$('#imgHz').addEventListener('change', () => { syncImageSlots(); updateAll(); });
+$('#imgN').addEventListener('change', e => { e.target.value = imgTiming().n; if (state.dots) resampleFromDots(); syncImageSlots(); updateAll(); });
+$$('[data-hz]').forEach(b => b.addEventListener('click', () => { $('#imgHz').value = b.dataset.hz; syncImageSlots(); updateAll(); }));
+$('#dotSens').addEventListener('input', e => $('#dotSensOut').textContent = e.target.value);
+$('#dotBtn').addEventListener('click', runDotDetect);
+$('#roiBtn').addEventListener('click', () => setTool('roi'));
+$('#roiClear').addEventListener('click', () => { state.roi = null; draw(); });
+$('#delBtn').addEventListener('click', () => { if (!state.points[state.target]) return toast('請先點選要刪除的點（點畫面上的點或步驟 3 的編號）'); deletePoint(state.target); });
+$('#demoBtn').addEventListener('click', () => loadDemo($('#demoSel').value));
+
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input,select,textarea')) return;
+  if (e.key === 'Escape') $('#modal').hidden = true;
+  if (e.code === 'Space') { spaceDown = true; e.preventDefault(); }
+  if (e.key === 'ArrowRight') { gotoFrame(state.cur + (e.shiftKey ? 10 : 1)); e.preventDefault(); }
+  if (e.key === 'ArrowLeft') { gotoFrame(state.cur - (e.shiftKey ? 10 : 1)); e.preventDefault(); }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && state.points[state.target]) { deletePoint(state.target); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { $('#undoBtn').click(); e.preventDefault(); }
+});
+document.addEventListener('keyup', e => { if (e.code === 'Space') spaceDown = false; });
+
+new ResizeObserver(() => { const keep = Math.abs(view.s - view.fit) < 1e-6; resize(); if (keep) fitView(); }).observe(stage);
+buildChartCards();
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderCharts); } catch (_) {}
+new MutationObserver(renderCharts).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+/* ---------- demo boot: build + auto-track ---------- */
+function makeTapeImage() {
+  const W = 1280, H = 360, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#6F7F86'); g.addColorStop(1, '#55646A');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  x.fillStyle = 'rgba(0,0,0,.25)'; x.fillRect(84, 126, 1150, 72);
+  x.fillStyle = '#F2EBD9'; x.fillRect(80, 120, 1150, 70);
+  let seed = 11; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  for (let i = 0; i < 260; i++) { x.fillStyle = `rgba(120,100,70,${0.08 + rnd() * 0.1})`; x.fillRect(80 + rnd() * 1150, 120 + rnd() * 70, 1, 1); }
+  // dots: v0 = 20 cm/s, a = 150 cm/s², 60 Hz, 20 px per cm
+  for (let i = 0; i < 40; i++) {
+    const t = i / 60, xc = 20 * t + 75 * t * t;
+    const px = 140 + xc * 20, py = 155 + (rnd() - .5) * 1.2;
+    x.fillStyle = '#2B2A2E'; x.beginPath(); x.arc(px, py, 2.6 + rnd() * 0.5, 0, Math.PI * 2); x.fill();
+  }
+  // ruler
+  x.fillStyle = '#F7F7F2'; x.fillRect(120, 230, 1040, 54);
+  x.fillStyle = '#1D1D1D';
+  for (let i = 0; i <= 500; i++) { const xx = 140 + i * 2; const h = i % 10 === 0 ? 16 : i % 5 === 0 ? 11 : 6; x.fillRect(xx - .5, 230, 1, h); }
+  x.font = '600 12px sans-serif'; x.textAlign = 'center';
+  for (let cm = 0; cm <= 50; cm += 5) x.fillText(String(cm), 140 + cm * 20, 262);
+  x.textAlign = 'left'; x.fillText('cm', 1128, 276);
+  x.fillStyle = 'rgba(255,255,255,.75)'; x.font = '14px sans-serif'; x.fillText('示範：打點計時器紙帶 · 60 Hz · 小車由左向右加速', 24, 34);
+  return c;
+}
+async function loadTapeDemo() {
+  if ($('#advOn').checked) { $('#advOn').checked = false; syncAdv(); }
+  const c = makeTapeImage();
+  $('#imgHz').value = 60; $('#imgN').value = 6; $('#dotPol').value = 'dark'; $('#dotDia').value = 6; $('#dotSens').value = 70; $('#dotSensOut').textContent = 70; $('#dotOrder').value = 'auto';
+  setImageSource(c, '示範：打點計時器紙帶', true);
+  state.roi = { x0: 90, y0: 125, x1: 1220, y1: 185 };
+  state.scale = { x1: 140, y1: 222, x2: 1140, y2: 222 };
+  state.len = 50; state.unit = 'cm'; $('#realLen').value = 50; $('#unit').value = 'cm';
+  await runDotDetect();
+}
+function makePerspDemo() {
+  const W = 1280, H = 720, fps = 60, n = 96;
+  const P2I = dlt([[0, 0], [120, 0], [120, 80], [0, 80]], [[140, 660], [1140, 660], [900, 230], [380, 230]]);
+  const pi = (X, Y) => applyH(P2I, X, Y);
+  const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+  const b = bg.getContext('2d');
+  const g = b.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#39444A'); g.addColorStop(1, '#2A3135'); b.fillStyle = g; b.fillRect(0, 0, W, H);
+  const poly = (pts, fill) => { b.beginPath(); pts.forEach(([X, Y], i) => { const [x, y] = pi(X, Y); i ? b.lineTo(x, y) : b.moveTo(x, y); }); b.closePath(); b.fillStyle = fill; b.fill(); };
+  poly([[0, 0], [120, 0], [120, 80], [0, 80]], '#7A5A3E');
+  b.strokeStyle = 'rgba(255,255,255,.07)'; b.lineWidth = 1;
+  for (let X = 0; X <= 120; X += 10) { const [a1, a2] = pi(X, 0), [c1, c2] = pi(X, 80); b.beginPath(); b.moveTo(a1, a2); b.lineTo(c1, c2); b.stroke(); }
+  for (let Y = 0; Y <= 80; Y += 10) { const [a1, a2] = pi(0, Y), [c1, c2] = pi(120, Y); b.beginPath(); b.moveTo(a1, a2); b.lineTo(c1, c2); b.stroke(); }
+  poly([[10, 5], [39.7, 5], [39.7, 26], [10, 26]], '#F4F3EE');
+  poly([[10, 1], [110, 1], [110, 3.6], [10, 3.6]], '#E8C547');
+  b.strokeStyle = '#2A2410';
+  for (let X = 10; X <= 110; X += 1) { const L = (X - 10) % 10 === 0 ? 1.6 : (X - 10) % 5 === 0 ? 1.1 : 0.6; const [a1, a2] = pi(X, 1), [c1, c2] = pi(X, 1 + L); b.lineWidth = (X - 10) % 10 === 0 ? 1.4 : 0.8; b.beginPath(); b.moveTo(a1, a2); b.lineTo(c1, c2); b.stroke(); }
+  b.fillStyle = '#4A4A46'; b.font = '600 13px sans-serif'; { const [x, y] = pi(24.85, 15.5); b.textAlign = 'center'; b.fillText('A4  29.7 × 21 cm', x, y); }
+  b.fillStyle = 'rgba(255,255,255,0.4)'; b.textAlign = 'left'; b.font = '14px sans-serif'; b.fillText('示範：從斜上方拍桌面 · 60 fps · 前緣的尺 100 cm', 24, 32);
+  const posPlane = i => { const t = i / fps; return [15 + 10 * t + 30 * t * t, 60 - 15 * t]; };
+  const pos = i => pi(...posPlane(i));
+  return {
+    kind: 'demo', type: 'persp', name: '示範：斜拍桌面', W, H, fps, duration: n / fps, pos, pi,
+    draw: async (i, c) => {
+      c.drawImage(bg, 0, 0);
+      const [X, Y] = posPlane(i), [x, y] = pi(X, Y), [x2, y2] = pi(X + 2.5, Y), r = Math.hypot(x2 - x, y2 - y);
+      const rg = c.createRadialGradient(x - r * .3, y - r * .4, 1, x, y, r);
+      rg.addColorStop(0, '#FFD2A8'); rg.addColorStop(.5, '#FF8A3D'); rg.addColorStop(1, '#C4501A');
+      c.fillStyle = rg; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    }
+  };
+}
+async function loadPerspDemo() {
+  const d = makePerspDemo();
+  setSource(d, 60, { start: 0, N: 4, K: 21 });
+  $('#mode').value = state.mode = 'fg';
+  if (!(await build())) return;
+  const [a1, a2] = d.pi(10, 2.3), [c1, c2] = d.pi(110, 2.3);
+  state.scale = { x1: a1, y1: a2, x2: c1, y2: c2 };
+  state.len = 100; state.unit = 'cm'; $('#realLen').value = 100; $('#unit').value = 'cm';
+  state.quad = [[10, 5], [39.7, 5], [39.7, 26], [10, 26]].map(([X, Y]) => { const [x, y] = d.pi(X, Y); return { x, y }; });
+  $('#qW').value = 29.7; $('#qH').value = 21;
+  $('#advOn').checked = true; $('#calMode').value = 'homo'; syncAdv();
+  $('#trkMode').value = 'fg';
+  renderCharts();
+  await autoTrack();
+}
+async function loadDemo(type) {
+  if (type === 'tape') return loadTapeDemo();
+  if (type === 'persp') return loadPerspDemo();
+  if ($('#advOn').checked) { $('#advOn').checked = false; syncAdv(); }
+  const d = makeDemo(type);
+  const cfg = {
+    proj: { start: 10, N: 4, K: 19, traj: '2' },
+    circle: { start: 0, N: 3, K: 24, traj: 'c' },
+    ramp: { start: 10, N: 5, K: 17, traj: '1' }
+  }[type];
+  setSource(d, 60, cfg);
+  $('#mode').value = state.mode = 'fg';
+  if (!(await build())) return;
+  state.scale = { x1: 140, y1: 640, x2: 390, y2: 640 };
+  state.len = 1; state.unit = 'm'; $('#realLen').value = 1; $('#unit').value = 'm';
+  if (type === 'circle') { state.origin = { x: 640, y: 330 }; }
+  if (type === 'ramp') { const p = d.pos(cfg.start); state.origin = { x: p[0], y: p[1] }; state.ang = -20 * DEG; $('#angDeg').value = -20; }
+  $('#trkMode').value = 'fg';
+  renderCharts();
+  await autoTrack();
+}
+$$('[data-go]').forEach(b => b.addEventListener('click', () => { const el = $(b.dataset.go); if (el) el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); }));
+if (matchMedia('(max-width: 960px)').matches) ['#st0', '#st1', '#st5'].forEach(id => $(id).open = false);
+resize();
+loadDemo('proj');
+})();
+</script>
+
+</body>
+</html>
